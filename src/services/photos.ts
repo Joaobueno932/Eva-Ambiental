@@ -1,4 +1,5 @@
-import * as FileSystem from 'expo-file-system';
+// SDK 54: a API clássica (uploadAsync) vive em "expo-file-system/legacy".
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase, PHOTO_BUCKET } from '@/lib/supabase';
 import { ImageSource, WeighingPhoto } from '@/types';
 

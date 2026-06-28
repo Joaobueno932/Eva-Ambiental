@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+// SDK 54: a API clássica (writeAsStringAsync, cacheDirectory) vive em "expo-file-system/legacy".
+import * as FileSystem from 'expo-file-system/legacy';
 import { DashboardStats, Weighing } from '@/types';
 import {
   approvalLabel,

@@ -37,7 +37,7 @@ export function PhotoPicker({ value, onChange }: Props) {
 
       const result = await ImagePicker.launchCameraAsync({
         quality: 0.6,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
       });
       if (result.canceled || !result.assets?.[0]) return;
 
@@ -84,7 +84,7 @@ export function PhotoPicker({ value, onChange }: Props) {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.6,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
       });
       if (result.canceled || !result.assets?.[0]) return;
 
