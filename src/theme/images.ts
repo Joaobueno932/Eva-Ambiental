@@ -8,8 +8,8 @@ export const evaImages = {
   hero: require('../../img/eva-hero.png'),
   /** Eva apontando/explicando (corpo inteiro, transparente) — sucesso / ajuda */
   pointing: require('../../img/eva.png'),
-  /** Retrato circular da Eva (fundo verde) — avatar de marca / sobre */
-  portrait: require('../../img/eva-perfil.png'),
+  /** Retrato da Eva (fundo verde opaco, JPEG otimizado) — avatar de marca / sobre */
+  portrait: require('../../img/eva-perfil.jpg'),
 } as const;
 
 export type EvaImageKey = keyof typeof evaImages;

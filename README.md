@@ -29,11 +29,15 @@ se uma imagem falhar ao carregar, mostra um ícone de folha no lugar — **o app
 |--------|--------------|
 | `img/eva-hero.png` (Eva acenando) | **Login** (boas-vindas), **estados vazios** do Painel e da lista de Pesagens |
 | `img/eva.png` (Eva apontando) | **Modal de sucesso** ao salvar pesagem, **modal de Ajuda** |
-| `img/eva-perfil.png` (retrato) | **Selo de marca** no rodapé do Perfil, **modal Sobre** |
+| `img/eva-perfil.jpg` (retrato) | **Selo de marca** no rodapé do Perfil, **modal Sobre** |
 | `img/logo icone.png` (ícone) | **Ícone do app** — origem de `assets/icon.png`, `assets/adaptive-icon.png`, `assets/splash.png` e `assets/favicon.png` |
 
 > Os assets em `assets/` são gerados a partir de `img/logo icone.png`. Para regenerá-los
 > após trocar a arte, basta reescalar a imagem 1024×1024 para esses quatro arquivos.
+
+> **Otimização:** as imagens da Eva foram reduzidas para **no máx. 512px** no maior lado
+> (são exibidas em ≤200px). `eva-hero` e `eva` permanecem em PNG (transparência);
+> `eva-perfil` é JPEG (fundo opaco). Resultado: ~3,3 MB → **~470 KB** no total.
 
 > A Eva é usada de forma estratégica (boas-vindas, vazios, sucesso, ajuda/sobre e marca),
 > sem poluir as telas operacionais.
