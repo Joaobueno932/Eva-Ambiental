@@ -84,9 +84,9 @@ export function DashboardScreen() {
         {!hasData ? (
           <Card>
             <EmptyState
-              icon="bar-chart-outline"
+              eva="hero"
               title="Sem dados no período"
-              message="Não há pesagens registradas para o período selecionado. Registre pesagens ou ajuste o filtro."
+              message="A Eva ainda não tem o que mostrar aqui. Registre pesagens ou ajuste o filtro de período."
             />
           </Card>
         ) : (

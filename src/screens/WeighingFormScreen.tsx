@@ -4,7 +4,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
-import { Button, Card, Header, Input, Loading, PhotoPicker, Select, SelectedPhoto } from '@/components';
+import { Button, Card, Header, Input, Loading, PhotoPicker, Select, SelectedPhoto, SuccessModal } from '@/components';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -36,6 +36,7 @@ export function WeighingFormScreen() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Cadastros mestres
   const [clients, setClients] = useState<Client[]>([]);
@@ -177,8 +178,7 @@ export function WeighingFormScreen() {
         });
       }
 
-      Alert.alert('Sucesso', isEdit ? 'Pesagem atualizada!' : 'Pesagem registrada e enviada para aprovação!');
-      navigation.goBack();
+      setShowSuccess(true);
     } catch (e: any) {
       Alert.alert('Erro ao salvar', e?.message ?? 'Tente novamente.');
     } finally {
@@ -289,6 +289,20 @@ export function WeighingFormScreen() {
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <SuccessModal
+        visible={showSuccess}
+        title={isEdit ? 'Pesagem atualizada!' : 'Pesagem registrada!'}
+        message={
+          isEdit
+            ? 'As alterações foram salvas com sucesso.'
+            : 'Pesagem registrada com sucesso e enviada para aprovação.'
+        }
+        onClose={() => {
+          setShowSuccess(false);
+          navigation.goBack();
+        }}
+      />
     </View>
   );
 }

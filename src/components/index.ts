@@ -13,3 +13,6 @@ export type { SelectedPhoto } from './PhotoPicker';
 export { BarChart } from './BarChart';
 export type { BarItem } from './BarChart';
 export { Header } from './Header';
+export { EvaImage } from './EvaImage';
+export { SuccessModal } from './SuccessModal';
+export { EvaInfoModal } from './EvaInfoModal';

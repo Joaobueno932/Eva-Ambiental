@@ -115,11 +115,11 @@ export function WeighingsListScreen() {
           refreshing={false}
           ListEmptyComponent={
             <EmptyState
-              icon="scale-outline"
-              title="Nenhuma pesagem"
+              eva="hero"
+              title="Nenhuma pesagem registrada ainda"
               message={
                 canCreateWeighing
-                  ? 'Toque no botão + para registrar a primeira pesagem.'
+                  ? 'A Eva está pronta! Toque no botão + para registrar a primeira pesagem.'
                   : 'Ainda não há pesagens para visualizar.'
               }
             />

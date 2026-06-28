@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, ConfirmModal, Header } from '@/components';
+import { Card, ConfirmModal, EvaImage, EvaInfoModal, Header } from '@/components';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -18,6 +18,8 @@ export function ProfileScreen() {
   const { profile, signOut } = useAuth();
   const { isAdmin } = usePermissions();
   const [confirmOut, setConfirmOut] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -60,13 +62,39 @@ export function ProfileScreen() {
         <Card>
           <MenuItem icon="person-outline" label="Meus Dados" onPress={() => showInfo('Meus Dados', `Nome: ${profile?.full_name}\nE-mail: ${profile?.email}\nPerfil: ${roleLabel[profile?.role ?? 'viewer']}`)} />
           <MenuItem icon="accessibility-outline" label="Acessibilidade" onPress={() => showInfo('Acessibilidade', 'O app usa botões grandes, alto contraste e textos legíveis. Ajuste o tamanho da fonte nas configurações do Android.')} />
-          <MenuItem icon="help-circle-outline" label="Ajuda" onPress={() => showInfo('Ajuda', 'Registre pesagens na aba Pesagens. Acompanhe indicadores no Painel. Em caso de dúvidas, contate o administrador.')} />
-          <MenuItem icon="information-circle-outline" label="Sobre" onPress={() => showInfo('Sobre', 'Eva Ambiental — controle, monitoramento e rastreabilidade de pesagens de resíduos. Sustentabilidade, confiança e organização. 🌱')} />
+          <MenuItem icon="help-circle-outline" label="Ajuda" onPress={() => setShowHelp(true)} />
+          <MenuItem icon="information-circle-outline" label="Sobre" onPress={() => setShowAbout(true)} />
           <MenuItem icon="log-out-outline" label="Sair" danger onPress={() => setConfirmOut(true)} last />
         </Card>
 
-        <Text style={styles.version}>Eva Ambiental • versão {version}</Text>
+        <View style={styles.brandFooter}>
+          <EvaImage name="portrait" size={44} style={styles.brandLogo} />
+          <Text style={styles.version}>Eva Ambiental • versão {version}</Text>
+        </View>
       </ScrollView>
+
+      <EvaInfoModal
+        visible={showHelp}
+        eva="pointing"
+        title="Como usar o Eva Ambiental"
+        message={
+          'Registre pesagens na aba Pesagens (botão +), anexando foto e localização.\n\n' +
+          'Acompanhe indicadores e a taxa de desvio de aterro no Painel.\n\n' +
+          'Gere relatórios em PDF e CSV a qualquer momento. Em caso de dúvidas, fale com um administrador.'
+        }
+        onClose={() => setShowHelp(false)}
+      />
+      <EvaInfoModal
+        visible={showAbout}
+        eva="portrait"
+        title="Sobre o Eva Ambiental"
+        message={
+          'Olá, eu sou a Eva! 🌱\n\n' +
+          'O Eva Ambiental ajuda empresas e equipes no controle, na rastreabilidade e no monitoramento das pesagens de resíduos — com evidências fotográficas, indicadores e relatórios.\n\n' +
+          'Sustentabilidade, confiança e organização.'
+        }
+        onClose={() => setShowAbout(false)}
+      />
 
       <ConfirmModal
         visible={confirmOut}
@@ -132,5 +160,7 @@ const styles = StyleSheet.create({
   menuBorder: { borderBottomWidth: 1, borderBottomColor: colors.gray },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   menuLabel: { fontSize: 16, color: colors.text, fontWeight: '600' },
-  version: { textAlign: 'center', color: colors.grayText, marginTop: spacing.lg, fontSize: 13 },
+  brandFooter: { alignItems: 'center', marginTop: spacing.lg },
+  brandLogo: { borderRadius: 22, marginBottom: spacing.xs },
+  version: { textAlign: 'center', color: colors.grayText, fontSize: 13 },
 });

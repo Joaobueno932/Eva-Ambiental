@@ -19,6 +19,25 @@ Construído com **React Native + Expo + TypeScript** e **Supabase** (Auth, Postg
 
 ---
 
+## 🦫 Mascote Eva (imagens)
+
+As imagens da mascote ficam na pasta **`/img`** (na raiz) e são centralizadas em
+`src/theme/images.ts`. O componente **`EvaImage`** as exibe de forma resiliente:
+se uma imagem falhar ao carregar, mostra um ícone de folha no lugar — **o app nunca quebra**.
+
+| Imagem | Onde é usada |
+|--------|--------------|
+| `img/eva-hero.png` (Eva acenando) | **Login** (boas-vindas), **estados vazios** do Painel e da lista de Pesagens |
+| `img/eva.png` (Eva apontando) | **Modal de sucesso** ao salvar pesagem, **modal de Ajuda** |
+| `img/eva-perfil.png` (retrato) | **Selo de marca** no rodapé do Perfil, **modal Sobre** |
+| `img/logo icone.png` (ícone) | **Ícone do app** — origem de `assets/icon.png`, `assets/adaptive-icon.png`, `assets/splash.png` e `assets/favicon.png` |
+
+> Os assets em `assets/` são gerados a partir de `img/logo icone.png`. Para regenerá-los
+> após trocar a arte, basta reescalar a imagem 1024×1024 para esses quatro arquivos.
+
+> A Eva é usada de forma estratégica (boas-vindas, vazios, sucesso, ajuda/sobre e marca),
+> sem poluir as telas operacionais.
+
 ## 🎨 Identidade visual (Eva)
 
 | Cor | Hex |
@@ -39,7 +58,8 @@ Construído com **React Native + Expo + TypeScript** e **Supabase** (Auth, Postg
 ├── app.json                # config Expo + permissões Android
 ├── eas.json                # perfis de build (APK)
 ├── .env.example
-├── assets/                 # ícones e splash
+├── assets/                 # ícones e splash do app
+├── img/                    # imagens da mascote Eva (hero, apontando, retrato)
 ├── supabase/
 │   ├── migrations/
 │   │   ├── 0001_initial_schema.sql   # tabelas, funções, triggers, RLS

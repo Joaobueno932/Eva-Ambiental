@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button, Input } from '@/components';
+import { Button, EvaImage, Input } from '@/components';
 import { colors, radius, spacing } from '@/theme';
 
 export function LoginScreen() {
@@ -51,9 +51,7 @@ export function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoCircle}>
-          <Ionicons name="leaf" size={56} color={colors.white} />
-        </View>
+        <EvaImage name="hero" width={180} height={200} style={styles.hero} />
         <Text style={styles.brand}>Eva Ambiental</Text>
         <Text style={styles.tagline}>Controle e rastreabilidade de pesagens de resíduos</Text>
 
@@ -104,16 +102,7 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.green,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
+  hero: { alignSelf: 'center', marginBottom: spacing.sm },
   brand: { fontSize: 30, fontWeight: '800', color: colors.greenDark, textAlign: 'center' },
   tagline: { fontSize: 14, color: colors.grayText, textAlign: 'center', marginTop: spacing.xs, marginBottom: spacing.xl },
   card: { backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.xl },
