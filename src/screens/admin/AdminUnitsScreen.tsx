@@ -11,6 +11,7 @@ export function AdminUnitsScreen() {
   useEffect(() => {
     listClients(false)
       .then(setClients)
+      .catch(() => setClients([])) // falha de rede: segue com lista vazia, sem quebrar
       .finally(() => setReady(true));
   }, []);
 

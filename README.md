@@ -220,6 +220,13 @@ Crie um usuário de cada perfil (via área administrativa, com um admin logado) 
 - Usuário **inativo** não acessa (verificado no login e via funções de RLS).
 - Storage `weighing-photos`: leitura por usuários ativos, upload por admin/analyst, remoção só por admin.
 
+### 📷 Fotos: bucket privado + URLs assinadas
+
+O bucket **`weighing-photos` é privado** (não público). O app **nunca** usa URL pública:
+as fotos são exibidas por meio de **URLs assinadas** geradas sob demanda
+(`createSignedUrl`, validade de 1 hora) em `src/services/photos.ts`. Assim, só usuários
+autenticados e ativos — respeitando o RLS das pesagens — conseguem visualizar as imagens.
+
 ---
 
 ## 🧩 Comandos úteis

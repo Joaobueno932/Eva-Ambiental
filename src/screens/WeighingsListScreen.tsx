@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +41,8 @@ export function WeighingsListScreen() {
     try {
       const data = await listWeighings({ ...filters, search });
       setItems(data);
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message ?? 'Não foi possível carregar as pesagens. Verifique sua conexão.');
     } finally {
       setLoading(false);
     }

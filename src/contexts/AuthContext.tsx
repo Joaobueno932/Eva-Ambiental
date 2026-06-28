@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
@@ -7,8 +7,10 @@ interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  /** true se sessão existe mas o usuário está inativo/sem perfil */
+  /** true quando o usuário autenticou mas está inativo/sem perfil (acesso negado) */
   blocked: boolean;
+  /** mensagem amigável para falhas transitórias (rede/servidor) ao carregar o perfil */
+  authError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -21,41 +23,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [blocked, setBlocked] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Preserva o estado "blocked" durante o signOut forçado de um usuário inativo,
+  // evitando que o evento SIGNED_OUT limpe a mensagem antes de exibi-la.
+  const keepBlocked = useRef(false);
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (error || !data) {
+      if (error) {
+        // PGRST116 = nenhuma linha encontrada (perfil inexistente) -> sem acesso.
+        if (error.code === 'PGRST116') {
+          keepBlocked.current = true;
+          setProfile(null);
+          setBlocked(true);
+          setAuthError(null);
+          await supabase.auth.signOut();
+        } else {
+          // Falha de rede/servidor: transitória — não tratar como inativo.
+          setProfile(null);
+          setBlocked(false);
+          setAuthError('Não foi possível carregar seu perfil. Verifique sua conexão e tente novamente.');
+        }
+        return;
+      }
+
+      if (!data || !data.active) {
+        // Usuário inativo (ou sem perfil) não acessa o sistema.
+        keepBlocked.current = true;
+        setProfile(null);
+        setBlocked(true);
+        setAuthError(null);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setProfile(data as Profile);
+      setBlocked(false);
+      setAuthError(null);
+    } catch {
+      // Exceção de rede inesperada — mantém o usuário fora, sem mensagem enganosa.
       setProfile(null);
-      setBlocked(true);
-      return;
+      setBlocked(false);
+      setAuthError('Falha de conexão. Tente novamente em instantes.');
     }
-    if (!data.active) {
-      // Usuário inativo não acessa o sistema.
-      setProfile(null);
-      setBlocked(true);
-      await supabase.auth.signOut();
-      return;
-    }
-    setProfile(data as Profile);
-    setBlocked(false);
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.user) {
-        await loadProfile(data.session.user.id);
-      }
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        if (!mounted) return;
+        setSession(data.session);
+        if (data.session?.user) {
+          await loadProfile(data.session.user.id);
+        }
+      })
+      .catch(() => {
+        if (mounted) setAuthError('Falha de conexão ao iniciar. Tente novamente.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
@@ -63,7 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await loadProfile(newSession.user.id);
       } else {
         setProfile(null);
-        setBlocked(false);
+        if (keepBlocked.current) {
+          // signOut forçado de inativo: preserva o banner já definido.
+          keepBlocked.current = false;
+        } else {
+          setBlocked(false);
+        }
       }
     });
 
@@ -74,6 +116,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    // Limpa estados anteriores ao iniciar nova tentativa.
+    setBlocked(false);
+    setAuthError(null);
+    keepBlocked.current = false;
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -82,9 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    keepBlocked.current = false;
     await supabase.auth.signOut();
     setProfile(null);
     setBlocked(false);
+    setAuthError(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -93,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, loading, blocked, signIn, signOut, refreshProfile }}
+      value={{ session, profile, loading, blocked, authError, signIn, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>

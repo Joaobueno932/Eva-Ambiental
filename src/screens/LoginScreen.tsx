@@ -13,7 +13,7 @@ import { Button, EvaImage, Input } from '@/components';
 import { colors, radius, spacing } from '@/theme';
 
 export function LoginScreen() {
-  const { signIn, blocked } = useAuth();
+  const { signIn, blocked, authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
@@ -39,6 +39,8 @@ export function LoginScreen() {
       let friendly = 'Não foi possível entrar. Tente novamente.';
       if (/invalid login credentials/i.test(msg)) friendly = 'E-mail ou senha incorretos.';
       else if (/email not confirmed/i.test(msg)) friendly = 'E-mail ainda não confirmado.';
+      else if (/network|fetch|timeout|connection/i.test(msg))
+        friendly = 'Sem conexão com o servidor. Verifique sua internet e tente novamente.';
       setErrors({ general: friendly });
     } finally {
       setLoading(false);
@@ -62,6 +64,13 @@ export function LoginScreen() {
               <Text style={styles.blockedText}>
                 Seu acesso está inativo. Procure um administrador.
               </Text>
+            </View>
+          )}
+
+          {!blocked && authError && (
+            <View style={styles.warning}>
+              <Ionicons name="cloud-offline-outline" size={18} color={colors.warning} />
+              <Text style={styles.warningText}>{authError}</Text>
             </View>
           )}
 
@@ -118,5 +127,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   blockedText: { color: colors.danger, flex: 1, fontSize: 13 },
+  warning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#FEF3C7',
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  warningText: { color: '#92400E', flex: 1, fontSize: 13 },
   footer: { textAlign: 'center', color: colors.grayText, marginTop: spacing.xl, fontSize: 13 },
 });
