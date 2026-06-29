@@ -21,6 +21,7 @@
     "android": {
       "package": "com.evaambiental.app",
       "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#63B32E"
