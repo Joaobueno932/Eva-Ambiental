@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +18,7 @@ export function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { profile, signOut } = useAuth();
   const { isAdmin } = usePermissions();
+  const insets = useSafeAreaInsets();
   const [confirmOut, setConfirmOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -28,7 +30,7 @@ export function ProfileScreen() {
   return (
     <View style={styles.container}>
       <Header title="Perfil" subtitle="Sua conta e preferências" />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: spacing.xxl + insets.bottom }]}>
         <Card>
           <View style={styles.userRow}>
             <View style={styles.avatar}>

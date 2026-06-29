@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { BarChart, Button, Card, DateRangePicker, EmptyState, Header, Loading, Tag } from '@/components';
@@ -14,6 +15,7 @@ import { generateCsvReport, generatePdfReport } from '@/utils/reports';
 
 export function DashboardScreen() {
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [range, setRange] = useState<DateRange>(buildPreset('month'));
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,7 @@ export function DashboardScreen() {
     <View style={styles.container}>
       <Header title="Meu Painel" subtitle="Acompanhe suas pesagens e estatísticas" />
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: spacing.xxl + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.green]} />}
       >
         <View style={styles.greeting}>

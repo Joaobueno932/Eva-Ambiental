@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ type Nav = NativeStackNavigationProp<WeighingsStackParamList, 'WeighingsList'>;
 export function WeighingsListScreen() {
   const navigation = useNavigation<Nav>();
   const { canCreateWeighing } = usePermissions();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<Weighing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export function WeighingsListScreen() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: 120 + insets.bottom }]}
           onRefresh={load}
           refreshing={false}
           ListEmptyComponent={

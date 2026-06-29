@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/theme';
 import { MainTabsParamList } from './types';
@@ -10,6 +11,9 @@ import { ProfileStack } from './ProfileStack';
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
 export function MainTabs() {
+  // Respeita a safe area inferior (botões virtuais do Android / edge-to-edge).
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -17,12 +21,14 @@ export function MainTabs() {
         tabBarActiveTintColor: colors.greenDark,
         tabBarInactiveTintColor: colors.grayText,
         tabBarStyle: {
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: 64 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingTop: 8,
           backgroundColor: colors.white,
+          borderTopWidth: 1,
           borderTopColor: colors.grayMedium,
         },
+        tabBarItemStyle: { paddingVertical: 2 },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
         tabBarIcon: ({ color, size }) => {
           const icon: Record<string, keyof typeof Ionicons.glyphMap> = {
