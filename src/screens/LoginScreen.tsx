@@ -65,7 +65,7 @@ export function LoginScreen() {
           placeholder="••••••••"
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
+          isPassword
           autoComplete="password"
           error={errors.password}
         />

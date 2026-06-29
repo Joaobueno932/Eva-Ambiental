@@ -164,7 +164,7 @@ export function AdminUsersScreen() {
                   label="Senha provisória"
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
+                  isPassword
                   error={errors.password}
                   hint="Mínimo de 6 caracteres."
                 />
