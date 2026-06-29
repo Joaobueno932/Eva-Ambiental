@@ -175,6 +175,14 @@ eas build -p android --profile preview
 ```
 O perfil `preview` (em `eas.json`) gera um **APK** instalável. Ao final, o EAS fornece um link para download.
 
+> ⚠️ **Importante (evita crash de inicialização no APK):** o `.env` **não** é enviado ao EAS Build.
+> As variáveis `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY` precisam estar no
+> **`eas.json`** (campo `env` de cada profile) — já estão configuradas lá. Por serem chaves
+> públicas (URL + publishable key, embarcadas no app), podem ficar no `eas.json`. Se faltarem,
+> o app agora mostra uma tela de "Configuração ausente" em vez de fechar.
+>
+> Para forçar um build limpo: `eas build -p android --profile preview --clear-cache`.
+
 Build local (opcional, requer Android SDK):
 ```bash
 npx expo prebuild
