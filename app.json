@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Eva Ambiental",
+    "slug": "eva-ambiental",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "evaambiental",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EEF8E7"
+    },
+    "androidNavigationBar": {
+      "barStyle": "dark-content"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.evaambiental.app",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#63B32E"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Eva Ambiental precisa da câmera para registrar fotos das pesagens."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Eva Ambiental precisa acessar suas fotos para anexar evidências de pesagens."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O Eva Ambiental usa sua localização para registrar onde a pesagem foi feita."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5f114c14-dc80-49b8-aade-259875355e2a"
+      }
+    }
+  }
+}
