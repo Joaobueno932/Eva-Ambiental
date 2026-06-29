@@ -28,7 +28,8 @@ import {
 } from '@/services/masters';
 import { createWeighing, getWeighing, updateWeighing, WeighingInput } from '@/services/weighings';
 import { insertPhotoRecord, uploadWeighingPhoto } from '@/services/photos';
-import { Client, Recipient, TreatmentType, Unit, WasteType } from '@/types';
+import { formatAddress, locationToColumns, shortLocationSummary } from '@/services/locationService';
+import { Client, LocationDetails, Recipient, TreatmentType, Unit, WasteType } from '@/types';
 import { WeighingsStackParamList } from '@/navigation/types';
 
 dayjs.extend(customParseFormat);
@@ -66,9 +67,16 @@ export function WeighingFormScreen() {
   const [notes, setNotes] = useState('');
   const [dateStr, setDateStr] = useState(dayjs().format('DD/MM/YYYY'));
   const [timeStr, setTimeStr] = useState(dayjs().format('HH:mm'));
-  const [manualLocation, setManualLocation] = useState('');
   const [photo, setPhoto] = useState<SelectedPhoto | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Campos de localização manual (usados quando a imagem é anexada)
+  const [manualLocation, setManualLocation] = useState('');
+  const [mStreet, setMStreet] = useState('');
+  const [mNeighborhood, setMNeighborhood] = useState('');
+  const [mPostal, setMPostal] = useState('');
+  const [mCity, setMCity] = useState('');
+  const [mState, setMState] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +111,11 @@ export function WeighingFormScreen() {
           setDateStr(dayjs(existing.weighing_date).format('DD/MM/YYYY'));
           setTimeStr(dayjs(existing.weighing_date).format('HH:mm'));
           setManualLocation(existing.manual_location ?? '');
+          setMStreet(existing.location_street ?? '');
+          setMNeighborhood(existing.location_neighborhood ?? '');
+          setMPostal(existing.location_postal_code ?? '');
+          setMCity(existing.location_city ?? '');
+          setMState(existing.location_state ?? '');
         }
       }
     } catch (e: any) {
@@ -153,6 +166,23 @@ export function WeighingFormScreen() {
     setSaving(true);
     try {
       const weighingDate = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm').toISOString();
+
+      // Localização manual (preenchida no anexo de imagem)
+      const manualDetails: LocationDetails = {
+        street: mStreet || null,
+        neighborhood: mNeighborhood || null,
+        postalCode: mPostal || null,
+        city: mCity || null,
+        state: mState || null,
+      };
+      manualDetails.formattedAddress = formatAddress(manualDetails);
+
+      // Câmera → usa o reverse geocode; anexo → usa o preenchimento manual.
+      const isCamera = photo?.imageSource === 'camera';
+      const locationColumns = isCamera
+        ? locationToColumns(photo?.location)
+        : locationToColumns(manualDetails);
+
       const input: WeighingInput = {
         client_id: clientId,
         unit_id: unitId,
@@ -162,11 +192,12 @@ export function WeighingFormScreen() {
         weighing_date: weighingDate,
         weight_kg: parseFloat(weight.replace(',', '.')),
         notes: notes || null,
-        gps_lat: photo?.gpsLat ?? null,
-        gps_lng: photo?.gpsLng ?? null,
-        manual_location: manualLocation || null,
+        gps_lat: isCamera ? photo?.location?.latitude ?? null : null,
+        gps_lng: isCamera ? photo?.location?.longitude ?? null : null,
+        manual_location: isCamera ? null : manualLocation || manualDetails.formattedAddress || null,
         image_source: photo?.imageSource ?? null,
         captured_at: photo?.capturedAt ?? (photo?.imageSource === 'upload' ? weighingDate : null),
+        ...locationColumns,
       };
 
       let weighingId = editId;
@@ -182,10 +213,11 @@ export function WeighingFormScreen() {
         const path = await uploadWeighingPhoto(weighingId, photo.uri);
         await insertPhotoRecord(weighingId, path, {
           imageSource: photo.imageSource,
-          gpsLat: photo.gpsLat ?? null,
-          gpsLng: photo.gpsLng ?? null,
-          manualLocation: photo.imageSource === 'upload' ? manualLocation || null : null,
+          gpsLat: isCamera ? photo.location?.latitude ?? null : null,
+          gpsLng: isCamera ? photo.location?.longitude ?? null : null,
+          manualLocation: isCamera ? null : manualLocation || manualDetails.formattedAddress || null,
           capturedAt: photo.capturedAt ?? weighingDate,
+          ...locationColumns,
         });
       }
 
@@ -268,11 +300,22 @@ export function WeighingFormScreen() {
                   Como a imagem foi anexada, informe os dados manualmente (opcional).
                 </Text>
                 <Input
-                  label="Localização manual"
+                  label="Localização manual / ponto de referência"
                   placeholder="Ex.: Galpão 2, Doca de resíduos"
                   value={manualLocation}
                   onChangeText={setManualLocation}
                 />
+                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores" value={mStreet} onChangeText={setMStreet} />
+                <Input label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={setMCity} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Input label="Estado" placeholder="UF" value={mState} onChangeText={setMState} autoCapitalize="characters" />
+                  </View>
+                </View>
+                <Input label="CEP" placeholder="00000-000" value={mPostal} onChangeText={setMPostal} keyboardType="numbers-and-punctuation" />
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Input label="Data da pesagem" placeholder="DD/MM/AAAA" value={dateStr} onChangeText={setDateStr} />
@@ -286,11 +329,22 @@ export function WeighingFormScreen() {
 
             {photo?.imageSource === 'camera' && (
               <View style={styles.gpsInfo}>
-                <Text style={styles.gpsText}>
-                  {photo.gpsLat != null
-                    ? `📍 Localização capturada automaticamente: ${photo.gpsLat.toFixed(5)}, ${photo.gpsLng?.toFixed(5)}`
-                    : '⚠️ Localização indisponível — a pesagem será salva sem coordenadas.'}
-                </Text>
+                {photo.location?.latitude != null ? (
+                  <>
+                    <Text style={styles.gpsText}>
+                      {shortLocationSummary(photo.location)
+                        ? `📍 Local capturado: ${shortLocationSummary(photo.location)}`
+                        : 'Coordenadas capturadas, mas não foi possível identificar o endereço.'}
+                    </Text>
+                    <Text style={styles.gpsCoords}>
+                      {photo.location.latitude.toFixed(5)}, {photo.location.longitude?.toFixed(5)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.gpsText}>
+                    ⚠️ Localização indisponível — a pesagem será salva sem coordenadas.
+                  </Text>
+                )}
               </View>
             )}
           </Card>
@@ -324,4 +378,5 @@ const styles = StyleSheet.create({
   uploadHint: { color: colors.greenDark, fontSize: 13, marginBottom: spacing.md },
   gpsInfo: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
   gpsText: { color: colors.greenDark, fontSize: 13 },
+  gpsCoords: { color: colors.grayText, fontSize: 12, marginTop: 4 },
 });

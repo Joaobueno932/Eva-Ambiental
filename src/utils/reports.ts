@@ -29,6 +29,14 @@ function escapeHtml(s: unknown): string {
     .replace(/>/g, '&gt;');
 }
 
+/** Melhor representação textual do endereço da pesagem. */
+function weighingAddress(w: Weighing): string {
+  return w.location_formatted_address || w.manual_location || w.location_place_name || '-';
+}
+function weighingCoords(w: Weighing): string {
+  return w.gps_lat != null ? `${w.gps_lat}, ${w.gps_lng}` : '-';
+}
+
 function buildHtml(ctx: ReportContext): string {
   const { stats, weighings, periodLabel } = ctx;
   const cls = classifyDiversion(stats.diversionRate);
@@ -56,7 +64,8 @@ function buildHtml(ctx: ReportContext): string {
         <td>${escapeHtml(w.creator?.full_name ?? '-')}</td>
         <td style="text-align:center">${w.photos?.length ?? 0}</td>
         <td>${escapeHtml(w.image_source ?? '-')}</td>
-        <td>${escapeHtml(w.manual_location ?? (w.gps_lat ? `${w.gps_lat}, ${w.gps_lng}` : '-'))}</td>
+        <td>${escapeHtml(weighingAddress(w))}</td>
+        <td>${escapeHtml(weighingCoords(w))}</td>
       </tr>`
     )
     .join('');
@@ -107,9 +116,9 @@ function buildHtml(ctx: ReportContext): string {
       <thead><tr>
         <th>Data</th><th>Hora</th><th>Cliente</th><th>Unidade</th><th>Resíduo</th>
         <th>Peso</th><th>Tratamento</th><th>Destinatário</th><th>Status</th>
-        <th>Responsável</th><th>Fotos</th><th>Origem</th><th>Localização</th>
+        <th>Responsável</th><th>Fotos</th><th>Origem</th><th>Endereço</th><th>Coordenadas</th>
       </tr></thead>
-      <tbody>${detailRows || '<tr><td colspan="13">Nenhuma pesagem no período.</td></tr>'}</tbody>
+      <tbody>${detailRows || '<tr><td colspan="14">Nenhuma pesagem no período.</td></tr>'}</tbody>
     </table>
   </body></html>`;
 }
@@ -137,7 +146,16 @@ const CSV_HEADERS = [
   'Responsável',
   'Qtd Fotos',
   'Origem Foto',
-  'Localização',
+  'Endereço Formatado',
+  'Nome do Local',
+  'Rua',
+  'Bairro',
+  'CEP',
+  'Cidade',
+  'Estado',
+  'Localização Manual',
+  'Latitude',
+  'Longitude',
   'Observações',
 ];
 
@@ -165,7 +183,16 @@ export async function generateCsvReport(ctx: ReportContext): Promise<void> {
         w.creator?.full_name ?? '-',
         w.photos?.length ?? 0,
         w.image_source ?? '-',
-        w.manual_location ?? (w.gps_lat ? `${w.gps_lat}, ${w.gps_lng}` : '-'),
+        w.location_formatted_address ?? '',
+        w.location_place_name ?? '',
+        w.location_street ?? '',
+        w.location_neighborhood ?? '',
+        w.location_postal_code ?? '',
+        w.location_city ?? '',
+        w.location_state ?? '',
+        w.manual_location ?? '',
+        w.gps_lat ?? '',
+        w.gps_lng ?? '',
         w.notes ?? '',
       ]
         .map(csvCell)

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ApprovalStatus, Weighing } from '@/types';
+import { ApprovalStatus, LocationColumns, Weighing } from '@/types';
 
 const SELECT_FULL = `
   *,
@@ -61,7 +61,7 @@ export async function getWeighing(id: string): Promise<Weighing | null> {
   return data as Weighing;
 }
 
-export interface WeighingInput {
+export interface WeighingInput extends LocationColumns {
   client_id: string;
   unit_id: string;
   waste_type_id: string;

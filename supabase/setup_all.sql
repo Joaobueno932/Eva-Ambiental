@@ -1,6 +1,6 @@
 -- =============================================================
 -- Eva Ambiental — SETUP COMPLETO (cole tudo no SQL Editor do Supabase)
--- Gerado de: migrations/0001, 0002, 0003 e seed.sql
+-- Gerado de: migrations/0001, 0002, 0003, 0004 e seed.sql
 -- Rode uma única vez. Idempotente o suficiente para reexecução segura.
 -- =============================================================
 
@@ -489,6 +489,41 @@ create policy profiles_admin_manage on public.profiles
   for all
   using (public.is_admin())
   with check (public.is_admin());
+
+
+-- >>>>>>>>>> 0004_location_details.sql <<<<<<<<<<
+
+-- =============================================================
+-- Eva Ambiental â€” Detalhes de localizaÃ§Ã£o (reverse geocoding)
+-- =============================================================
+-- Adiciona campos de endereÃ§o (resultado do reverse geocode) em
+-- weighings e weighing_photos. MantÃ©m compatibilidade com os campos
+-- antigos: gps_lat, gps_lng, manual_location.
+-- =============================================================
+
+-- ---------------- weighings ----------------
+alter table public.weighings
+  add column if not exists location_place_name text,
+  add column if not exists location_street text,
+  add column if not exists location_number text,
+  add column if not exists location_neighborhood text,
+  add column if not exists location_postal_code text,
+  add column if not exists location_city text,
+  add column if not exists location_state text,
+  add column if not exists location_country text,
+  add column if not exists location_formatted_address text;
+
+-- ---------------- weighing_photos ----------------
+alter table public.weighing_photos
+  add column if not exists location_place_name text,
+  add column if not exists location_street text,
+  add column if not exists location_number text,
+  add column if not exists location_neighborhood text,
+  add column if not exists location_postal_code text,
+  add column if not exists location_city text,
+  add column if not exists location_state text,
+  add column if not exists location_country text,
+  add column if not exists location_formatted_address text;
 
 
 -- >>>>>>>>>> seed.sql <<<<<<<<<<

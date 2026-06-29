@@ -113,23 +113,49 @@ export function WeighingDetailsScreen() {
           <Info icon="person-outline" label="Operador responsável" value={weighing.creator?.full_name} />
           <Info icon="cube-outline" label="Tipo de tratamento" value={weighing.treatment_type?.name} />
           <Info icon="navigate-outline" label="Destinatário" value={weighing.recipient?.name ?? 'Não informado'} />
+          {weighing.notes ? <Info icon="document-text-outline" label="Observações" value={weighing.notes} /> : null}
+        </Card>
+
+        {/* Localização */}
+        <Card>
+          <Text style={styles.sectionTitle}>Localização</Text>
           <Info
             icon="image-outline"
-            label="Origem da foto"
+            label="Origem da imagem"
             value={weighing.image_source === 'camera' ? 'Câmera' : weighing.image_source === 'upload' ? 'Anexo' : 'Sem foto'}
           />
+          {weighing.location_formatted_address ? (
+            <Info icon="map-outline" label="Endereço" value={weighing.location_formatted_address} />
+          ) : null}
+          {weighing.location_place_name ? (
+            <Info icon="pin-outline" label="Local" value={weighing.location_place_name} />
+          ) : null}
+          {weighing.manual_location ? (
+            <Info icon="navigate-outline" label="Localização manual" value={weighing.manual_location} />
+          ) : null}
+          {weighing.location_city || weighing.location_state ? (
+            <Info
+              icon="business-outline"
+              label="Cidade / Estado"
+              value={[weighing.location_city, weighing.location_state].filter(Boolean).join(' - ')}
+            />
+          ) : null}
+          {weighing.location_postal_code ? (
+            <Info icon="mail-outline" label="CEP" value={weighing.location_postal_code} />
+          ) : null}
           <Info
-            icon="pin-outline"
-            label="Localização"
-            value={
-              weighing.manual_location
-                ? weighing.manual_location
-                : weighing.gps_lat != null
-                ? `${weighing.gps_lat}, ${weighing.gps_lng}`
-                : 'Não informada'
-            }
+            icon="locate-outline"
+            label="Coordenadas"
+            value={weighing.gps_lat != null ? `${weighing.gps_lat}, ${weighing.gps_lng}` : 'Não informadas'}
           />
-          {weighing.notes ? <Info icon="document-text-outline" label="Observações" value={weighing.notes} /> : null}
+          <Info
+            icon="time-outline"
+            label="Capturado em"
+            value={weighing.captured_at ? formatDateTime(weighing.captured_at) : '-'}
+          />
+          {!weighing.location_formatted_address && weighing.gps_lat != null ? (
+            <Text style={styles.locHint}>Coordenadas capturadas, mas o endereço não foi identificado.</Text>
+          ) : null}
         </Card>
 
         {/* Dados gravimétricos */}
@@ -283,6 +309,7 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 12, color: colors.grayText },
   infoValue: { fontSize: 15, color: colors.text, fontWeight: '600', marginTop: 1 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  locHint: { color: colors.grayText, fontSize: 12, fontStyle: 'italic', marginTop: spacing.sm },
   weightBox: { backgroundColor: colors.greenBg, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center', marginBottom: spacing.md },
   weightLabel: { color: colors.greenDark, fontSize: 13, fontWeight: '600' },
   weightValue: { color: colors.greenDark, fontSize: 32, fontWeight: '800', marginTop: 4 },

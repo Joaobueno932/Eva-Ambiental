@@ -2,6 +2,35 @@ export type Role = 'admin' | 'analyst' | 'viewer';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ImageSource = 'camera' | 'upload';
 
+/** Detalhes de localização (reverse geocoding ou preenchimento manual). */
+export interface LocationDetails {
+  latitude?: number | null;
+  longitude?: number | null;
+  placeName?: string | null;
+  street?: string | null;
+  number?: string | null;
+  neighborhood?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  formattedAddress?: string | null;
+  capturedAt?: string | null;
+}
+
+/** Colunas de endereço persistidas (weighings e weighing_photos). */
+export interface LocationColumns {
+  location_place_name?: string | null;
+  location_street?: string | null;
+  location_number?: string | null;
+  location_neighborhood?: string | null;
+  location_postal_code?: string | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  location_country?: string | null;
+  location_formatted_address?: string | null;
+}
+
 export interface Profile {
   id: string;
   full_name: string;
@@ -60,7 +89,7 @@ export interface Recipient {
   created_at: string;
 }
 
-export interface WeighingPhoto {
+export interface WeighingPhoto extends LocationColumns {
   id: string;
   weighing_id: string;
   storage_path: string;
@@ -73,7 +102,7 @@ export interface WeighingPhoto {
   created_at: string;
 }
 
-export interface Weighing {
+export interface Weighing extends LocationColumns {
   id: string;
   client_id: string;
   unit_id: string;

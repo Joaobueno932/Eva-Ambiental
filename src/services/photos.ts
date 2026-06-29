@@ -1,12 +1,12 @@
 // SDK 54: a API clássica (uploadAsync) vive em "expo-file-system/legacy".
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase, PHOTO_BUCKET } from '@/lib/supabase';
-import { ImageSource, WeighingPhoto } from '@/types';
+import { ImageSource, LocationColumns, WeighingPhoto } from '@/types';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-export interface PhotoMeta {
+export interface PhotoMeta extends LocationColumns {
   imageSource: ImageSource;
   gpsLat?: number | null;
   gpsLng?: number | null;
@@ -56,6 +56,15 @@ export async function insertPhotoRecord(weighingId: string, storagePath: string,
     gps_lng: meta.gpsLng ?? null,
     manual_location: meta.manualLocation ?? null,
     captured_at: meta.capturedAt ?? null,
+    location_place_name: meta.location_place_name ?? null,
+    location_street: meta.location_street ?? null,
+    location_number: meta.location_number ?? null,
+    location_neighborhood: meta.location_neighborhood ?? null,
+    location_postal_code: meta.location_postal_code ?? null,
+    location_city: meta.location_city ?? null,
+    location_state: meta.location_state ?? null,
+    location_country: meta.location_country ?? null,
+    location_formatted_address: meta.location_formatted_address ?? null,
   });
   if (error) throw error;
 }
