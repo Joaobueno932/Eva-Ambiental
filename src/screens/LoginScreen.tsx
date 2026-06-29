@@ -1,19 +1,13 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button, EvaImage, Input } from '@/components';
+import { Button, EvaImage, FormScreenContainer, Input } from '@/components';
 import { colors, radius, spacing } from '@/theme';
+import { describeSignInError } from '@/utils/authErrors';
 
 export function LoginScreen() {
-  const { signIn, blocked, authError } = useAuth();
+  const { signIn, authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
@@ -35,89 +29,71 @@ export function LoginScreen() {
     try {
       await signIn(email, password);
     } catch (err: any) {
-      const msg = err?.message ?? '';
-      let friendly = 'Não foi possível entrar. Tente novamente.';
-      if (/invalid login credentials/i.test(msg)) friendly = 'E-mail ou senha incorretos.';
-      else if (/email not confirmed/i.test(msg)) friendly = 'E-mail ainda não confirmado.';
-      else if (/network|fetch|timeout|connection/i.test(msg))
-        friendly = 'Sem conexão com o servidor. Verifique sua internet e tente novamente.';
-      setErrors({ general: friendly });
+      setErrors({ general: describeSignInError(err) });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.greenBg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <EvaImage name="hero" width={180} height={200} style={styles.hero} />
-        <Text style={styles.brand}>Eva Ambiental</Text>
-        <Text style={styles.tagline}>Controle e rastreabilidade de pesagens de resíduos</Text>
+    <FormScreenContainer center edges={['top', 'bottom']} contentContainerStyle={styles.scroll}>
+      <EvaImage name="hero" width={180} height={200} style={styles.hero} />
+      <Text style={styles.brand}>Eva Ambiental</Text>
+      <Text style={styles.tagline}>Controle e rastreabilidade de pesagens de resíduos</Text>
 
-        <View style={styles.card}>
-          {blocked && (
-            <View style={styles.blocked}>
-              <Ionicons name="alert-circle" size={18} color={colors.danger} />
-              <Text style={styles.blockedText}>
-                Seu acesso está inativo. Procure um administrador.
-              </Text>
-            </View>
-          )}
+      <View style={styles.card}>
+        {/* Mensagem do contexto de auth: inativo, sem perfil, role inválido, permissão ou rede */}
+        {authError && (
+          <View style={styles.notice}>
+            <Ionicons name="alert-circle" size={18} color={colors.danger} />
+            <Text style={styles.noticeText}>{authError}</Text>
+          </View>
+        )}
 
-          {!blocked && authError && (
-            <View style={styles.warning}>
-              <Ionicons name="cloud-offline-outline" size={18} color={colors.warning} />
-              <Text style={styles.warningText}>{authError}</Text>
-            </View>
-          )}
+        <Input
+          label="E-mail"
+          placeholder="voce@empresa.com"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          autoComplete="email"
+          error={errors.email}
+        />
+        <Input
+          label="Senha"
+          placeholder="••••••••"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoComplete="password"
+          error={errors.password}
+        />
 
-          <Input
-            label="E-mail"
-            placeholder="voce@empresa.com"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-            error={errors.email}
-          />
-          <Input
-            label="Senha"
-            placeholder="••••••••"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            error={errors.password}
-          />
+        {errors.general ? (
+          <View style={styles.error}>
+            <Ionicons name="close-circle" size={18} color={colors.danger} />
+            <Text style={styles.errorText}>{errors.general}</Text>
+          </View>
+        ) : null}
 
-          {errors.general ? (
-            <View style={styles.error}>
-              <Ionicons name="close-circle" size={18} color={colors.danger} />
-              <Text style={styles.errorText}>{errors.general}</Text>
-            </View>
-          ) : null}
+        <Button title="Entrar" icon="log-in-outline" onPress={onSubmit} loading={loading} />
+      </View>
 
-          <Button title="Entrar" icon="log-in-outline" onPress={onSubmit} loading={loading} />
-        </View>
-
-        <Text style={styles.footer}>🌱 Sustentabilidade, confiança e organização</Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Text style={styles.footer}>🌱 Sustentabilidade, confiança e organização</Text>
+    </FormScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
+  scroll: { padding: spacing.xl },
   hero: { alignSelf: 'center', marginBottom: spacing.sm },
   brand: { fontSize: 30, fontWeight: '800', color: colors.greenDark, textAlign: 'center' },
   tagline: { fontSize: 14, color: colors.grayText, textAlign: 'center', marginTop: spacing.xs, marginBottom: spacing.xl },
   card: { backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.xl },
   error: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
   errorText: { color: colors.danger, flex: 1 },
-  blocked: {
+  notice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -126,16 +102,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: spacing.md,
   },
-  blockedText: { color: colors.danger, flex: 1, fontSize: 13 },
-  warning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: '#FEF3C7',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    marginBottom: spacing.md,
-  },
-  warningText: { color: '#92400E', flex: 1, fontSize: 13 },
+  noticeText: { color: colors.danger, flex: 1, fontSize: 13 },
   footer: { textAlign: 'center', color: colors.grayText, marginTop: spacing.xl, fontSize: 13 },
 });

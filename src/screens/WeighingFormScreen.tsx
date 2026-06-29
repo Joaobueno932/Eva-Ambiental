@@ -1,10 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
-import { Button, Card, Header, Input, Loading, PhotoPicker, Select, SelectedPhoto, SuccessModal } from '@/components';
+import {
+  Button,
+  Card,
+  FormScreenContainer,
+  Header,
+  Input,
+  Loading,
+  PhotoPicker,
+  Select,
+  SelectedPhoto,
+  SuccessModal,
+} from '@/components';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -195,8 +206,7 @@ export function WeighingFormScreen() {
         subtitle="Preencha os dados da pesagem"
         onBack={() => navigation.goBack()}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <FormScreenContainer>
           <Card>
             <Select
               label="Cliente"
@@ -286,9 +296,7 @@ export function WeighingFormScreen() {
           </Card>
 
           <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />
-          <View style={{ height: spacing.xxl }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </FormScreenContainer>
 
       <SuccessModal
         visible={showSuccess}

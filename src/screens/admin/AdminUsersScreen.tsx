@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, EmptyState, Header, Input, Loading, Select } from '@/components';
@@ -139,7 +139,7 @@ export function AdminUsersScreen() {
       </Pressable>
 
       <Modal visible={modal} transparent animationType="slide" onRequestClose={() => setModal(false)}>
-        <View style={styles.backdrop}>
+        <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{editing ? 'Editar usuário' : 'Novo usuário'}</Text>
@@ -185,7 +185,7 @@ export function AdminUsersScreen() {
               <View style={{ height: spacing.xl }} />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

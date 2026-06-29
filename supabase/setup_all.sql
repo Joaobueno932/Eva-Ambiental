@@ -1,7 +1,7 @@
 -- =============================================================
 -- Eva Ambiental — SETUP COMPLETO (cole tudo no SQL Editor do Supabase)
--- Gerado a partir de: migrations/0001, migrations/0002 e seed.sql
--- Rode uma única vez. É idempotente o suficiente para reexecução segura.
+-- Gerado de: migrations/0001, 0002, 0003 e seed.sql
+-- Rode uma única vez. Idempotente o suficiente para reexecução segura.
 -- =============================================================
 
 -- >>>>>>>>>> 0001_initial_schema.sql <<<<<<<<<<
@@ -441,6 +441,54 @@ create policy "weighing_photos_delete" on storage.objects
     bucket_id = 'weighing-photos'
     and public.is_admin()
   );
+
+
+-- >>>>>>>>>> 0003_grants_and_profiles_rls.sql <<<<<<<<<<
+
+-- =============================================================
+-- Eva Ambiental â€” GRANTs de privilÃ©gio + refino das policies de profiles
+-- =============================================================
+-- CAUSA DO ERRO DE LOGIN: com RLS ativo, o papel `authenticated` ainda
+-- precisa de GRANT de privilÃ©gio na tabela. Sem o GRANT, o Postgres
+-- retorna 42501 ("permission denied") ANTES de avaliar as policies.
+-- Esta migration concede os privilÃ©gios e o RLS continua filtrando linhas.
+-- Rode no SQL Editor (ou via supabase db push).
+-- =============================================================
+
+-- O app exige login, entÃ£o sÃ³ o papel `authenticated` recebe acesso.
+-- O `anon` (prÃ©-login) permanece sem privilÃ©gios â€” nada Ã© legÃ­vel sem autenticar.
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- Objetos futuros herdam os mesmos privilÃ©gios.
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public
+  grant usage, select on sequences to authenticated;
+
+-- -------------------------------------------------------------
+-- Policies de profiles (mÃ­nimas e claras)
+-- -------------------------------------------------------------
+-- - UsuÃ¡rio autenticado lÃª o PRÃ“PRIO perfil
+-- - Admin ativo lÃª TODOS os perfis
+-- - Admin ativo gerencia (insert/update/delete) os perfis
+-- (is_admin() Ã© SECURITY DEFINER, evita recursÃ£o de RLS)
+drop policy if exists profiles_select on public.profiles;
+drop policy if exists profiles_update_self on public.profiles;
+drop policy if exists profiles_admin_all on public.profiles;
+drop policy if exists profiles_select_self_or_admin on public.profiles;
+drop policy if exists profiles_admin_manage on public.profiles;
+
+create policy profiles_select_self_or_admin on public.profiles
+  for select
+  using (id = auth.uid() or public.is_admin());
+
+create policy profiles_admin_manage on public.profiles
+  for all
+  using (public.is_admin())
+  with check (public.is_admin());
 
 
 -- >>>>>>>>>> seed.sql <<<<<<<<<<

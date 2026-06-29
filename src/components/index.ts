@@ -14,5 +14,6 @@ export { BarChart } from './BarChart';
 export type { BarItem } from './BarChart';
 export { Header } from './Header';
 export { EvaImage } from './EvaImage';
+export { FormScreenContainer } from './FormScreenContainer';
 export { SuccessModal } from './SuccessModal';
 export { EvaInfoModal } from './EvaInfoModal';

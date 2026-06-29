@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
+import { describeProfileError, validateProfile } from '@/utils/authErrors';
 
 interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  /** true quando o usuário autenticou mas está inativo/sem perfil (acesso negado) */
-  blocked: boolean;
-  /** mensagem amigável para falhas transitórias (rede/servidor) ao carregar o perfil */
+  /** Mensagem amigável quando o login ocorre mas o perfil não pode ser usado
+   *  (inativo, sem perfil, role inválido, permissão, rede). null = sem problema. */
   authError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -22,12 +22,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [blocked, setBlocked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Preserva o estado "blocked" durante o signOut forçado de um usuário inativo,
+  // Preserva a authError durante o signOut forçado de um perfil inválido,
   // evitando que o evento SIGNED_OUT limpe a mensagem antes de exibi-la.
-  const keepBlocked = useRef(false);
+  const preserveError = useRef(false);
 
   const loadProfile = useCallback(async (userId: string) => {
     try {
@@ -38,40 +37,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        // PGRST116 = nenhuma linha encontrada (perfil inexistente) -> sem acesso.
-        if (error.code === 'PGRST116') {
-          keepBlocked.current = true;
-          setProfile(null);
-          setBlocked(true);
-          setAuthError(null);
+        // Log do erro real (sem dados sensíveis) para diagnóstico.
+        console.warn('[Auth] Falha ao carregar perfil:', error.code, '-', error.message);
+        const issue = describeProfileError(error);
+        setProfile(null);
+        setAuthError(issue.message);
+        if (issue.signOut) {
+          preserveError.current = true;
           await supabase.auth.signOut();
-        } else {
-          // Falha de rede/servidor: transitória — não tratar como inativo.
-          setProfile(null);
-          setBlocked(false);
-          setAuthError('Não foi possível carregar seu perfil. Verifique sua conexão e tente novamente.');
         }
         return;
       }
 
-      if (!data || !data.active) {
-        // Usuário inativo (ou sem perfil) não acessa o sistema.
-        keepBlocked.current = true;
+      // Valida ativo + role válido
+      const invalid = validateProfile(data);
+      if (invalid) {
+        console.warn('[Auth] Perfil inválido:', invalid.kind);
         setProfile(null);
-        setBlocked(true);
-        setAuthError(null);
-        await supabase.auth.signOut();
+        setAuthError(invalid.message);
+        if (invalid.signOut) {
+          preserveError.current = true;
+          await supabase.auth.signOut();
+        }
         return;
       }
 
       setProfile(data as Profile);
-      setBlocked(false);
       setAuthError(null);
-    } catch {
-      // Exceção de rede inesperada — mantém o usuário fora, sem mensagem enganosa.
+    } catch (e: any) {
+      console.warn('[Auth] Exceção ao carregar perfil:', e?.message);
       setProfile(null);
-      setBlocked(false);
-      setAuthError('Falha de conexão. Tente novamente em instantes.');
+      setAuthError('Não foi possível conectar ao Supabase. Verifique a internet e as variáveis do ambiente.');
     }
   }, []);
 
@@ -87,8 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await loadProfile(data.session.user.id);
         }
       })
-      .catch(() => {
-        if (mounted) setAuthError('Falha de conexão ao iniciar. Tente novamente.');
+      .catch((e) => {
+        console.warn('[Auth] getSession falhou:', e?.message);
+        if (mounted) {
+          setAuthError('Não foi possível conectar ao Supabase. Verifique a internet e as variáveis do ambiente.');
+        }
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -100,11 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await loadProfile(newSession.user.id);
       } else {
         setProfile(null);
-        if (keepBlocked.current) {
-          // signOut forçado de inativo: preserva o banner já definido.
-          keepBlocked.current = false;
+        if (preserveError.current) {
+          // signOut forçado de perfil inválido: preserva a mensagem já definida.
+          preserveError.current = false;
         } else {
-          setBlocked(false);
+          setAuthError(null);
         }
       }
     });
@@ -116,10 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    // Limpa estados anteriores ao iniciar nova tentativa.
-    setBlocked(false);
     setAuthError(null);
-    keepBlocked.current = false;
+    preserveError.current = false;
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -128,10 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    keepBlocked.current = false;
+    preserveError.current = false;
     await supabase.auth.signOut();
     setProfile(null);
-    setBlocked(false);
     setAuthError(null);
   }, []);
 
@@ -140,9 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session, loadProfile]);
 
   return (
-    <AuthContext.Provider
-      value={{ session, profile, loading, blocked, authError, signIn, signOut, refreshProfile }}
-    >
+    <AuthContext.Provider value={{ session, profile, loading, authError, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
