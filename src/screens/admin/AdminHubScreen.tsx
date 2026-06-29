@@ -16,6 +16,7 @@ const ITEMS: { route: keyof ProfileStackParamList; icon: keyof typeof Ionicons.g
   { route: 'AdminWasteTypes', icon: 'trash', title: 'Tipos de Resíduos', sub: 'Categorias de resíduos' },
   { route: 'AdminTreatmentTypes', icon: 'sync', title: 'Tipos de Tratamento', sub: 'Define desvio de aterro' },
   { route: 'AdminRecipients', icon: 'navigate', title: 'Destinatários', sub: 'Para onde o resíduo vai' },
+  { route: 'AdminImport', icon: 'cloud-upload', title: 'Importação', sub: 'Importar dados via planilha Excel' },
 ];
 
 export function AdminHubScreen() {

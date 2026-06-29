@@ -11,7 +11,7 @@ import { listWeighings } from '@/services/weighings';
 import { DashboardStats } from '@/types';
 import { buildPreset, DateRange } from '@/utils/dateRanges';
 import { classifyDiversion, formatNumber, formatPercent, formatWeight, roleLabel } from '@/utils/format';
-import { generateCsvReport, generatePdfReport } from '@/utils/reports';
+import { generateCsvReport, generatePdfReport, generateXlsxReport } from '@/utils/reports';
 
 export function DashboardScreen() {
   const { profile } = useAuth();
@@ -45,13 +45,14 @@ export function DashboardScreen() {
     load();
   };
 
-  const exportReport = async (type: 'pdf' | 'csv') => {
+  const exportReport = async (type: 'xlsx' | 'pdf' | 'csv') => {
     if (!stats) return;
     setExporting(true);
     try {
       const weighings = await listWeighings({ startDate: range.startDate, endDate: range.endDate });
       const ctx = { periodLabel: range.label, stats, weighings };
-      if (type === 'pdf') await generatePdfReport(ctx);
+      if (type === 'xlsx') await generateXlsxReport(ctx);
+      else if (type === 'pdf') await generatePdfReport(ctx);
       else await generateCsvReport(ctx);
     } catch (e: any) {
       Alert.alert('Erro', e?.message ?? 'Falha ao gerar relatório.');
@@ -138,10 +139,17 @@ export function DashboardScreen() {
 
             <Card>
               <Text style={styles.cardTitle}>Relatórios</Text>
-              <Text style={styles.diversionHint}>Gere o relatório do período selecionado.</Text>
+              <Text style={styles.diversionHint}>Gere o relatório completo do período selecionado.</Text>
+              <Button
+                title="Excel — Relatório formatado"
+                icon="document"
+                onPress={() => exportReport('xlsx')}
+                loading={exporting}
+                style={{ marginTop: spacing.sm }}
+              />
               <View style={styles.reportRow}>
                 <View style={{ flex: 1 }}>
-                  <Button title="PDF" icon="document-text" onPress={() => exportReport('pdf')} loading={exporting} />
+                  <Button title="PDF" icon="document-text" variant="outline" onPress={() => exportReport('pdf')} loading={exporting} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button title="CSV" icon="grid" variant="outline" onPress={() => exportReport('csv')} loading={exporting} />

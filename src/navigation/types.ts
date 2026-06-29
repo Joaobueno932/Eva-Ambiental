@@ -15,6 +15,7 @@ export type ProfileStackParamList = {
   AdminWasteTypes: undefined;
   AdminTreatmentTypes: undefined;
   AdminRecipients: undefined;
+  AdminImport: undefined;
 };
 
 export type MainTabsParamList = {

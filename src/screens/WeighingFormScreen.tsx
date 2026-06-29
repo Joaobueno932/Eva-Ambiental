@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -137,6 +137,33 @@ export function WeighingFormScreen() {
         .map((u) => ({ label: u.name, value: u.id })),
     [units, clientId]
   );
+
+  // Rastreia se o endereço foi preenchido por auto-fill (vs. dado salvo ou digitação manual).
+  // - false: endereço veio do banco ou do usuário → não sobrescrever ao trocar unidade.
+  // - true:  endereço veio de auto-fill → pode atualizar se o usuário trocar a unidade.
+  const addressAutoFilledRef = useRef(false);
+
+  // Pré-preenche cidade e rua a partir da unidade selecionada.
+  // Funciona para pesagens novas E para edição (pesagens importadas chegam com endereço vazio).
+  // Usa functional setState para ler o valor atual sem adicionar mCity/mStreet como deps.
+  useEffect(() => {
+    if (!unitId || units.length === 0) return;
+    const unit = units.find((u) => u.id === unitId);
+    if (!unit) return;
+    setMCity((cur) => {
+      if (!cur || addressAutoFilledRef.current) {
+        if (unit.city) addressAutoFilledRef.current = true;
+        return unit.city ?? cur;
+      }
+      return cur;
+    });
+    setMStreet((cur) => {
+      if (!cur || addressAutoFilledRef.current) {
+        return unit.address ?? cur;
+      }
+      return cur;
+    });
+  }, [unitId, units]);
 
   // Ao tirar foto na câmera, preenche data/hora e localização automaticamente.
   const onPhotoChange = (p: SelectedPhoto | null) => {
@@ -305,11 +332,11 @@ export function WeighingFormScreen() {
                   value={manualLocation}
                   onChangeText={setManualLocation}
                 />
-                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores" value={mStreet} onChangeText={setMStreet} />
+                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores" value={mStreet} onChangeText={(v) => { addressAutoFilledRef.current = false; setMStreet(v); }} />
                 <Input label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={setMCity} />
+                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={(v) => { addressAutoFilledRef.current = false; setMCity(v); }} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Input label="Estado" placeholder="UF" value={mState} onChangeText={setMState} autoCapitalize="characters" />
