@@ -66,6 +66,14 @@ export function DashboardScreen() {
   const hasData = stats && stats.totalWeighings > 0;
   const cls = stats ? classifyDiversion(stats.diversionRate) : null;
 
+  const lostDiversionColor = stats
+    ? stats.lostDiversion.rate <= 10
+      ? '#16A34A'
+      : stats.lostDiversion.rate <= 30
+      ? '#D97706'
+      : '#DC2626'
+    : '#16A34A';
+
   return (
     <View style={styles.container}>
       <Header title="Meu Painel" subtitle="Acompanhe suas pesagens e estatísticas" />
@@ -114,6 +122,33 @@ export function DashboardScreen() {
                 Peso desviado de aterro sobre o peso total no período.
               </Text>
             </Card>
+
+            {stats!.lostDiversion.divertibleWeight > 0 && (
+              <Card>
+                <Text style={styles.cardTitle}>Potencial de Desvio Perdido</Text>
+                <View style={styles.diversionRow}>
+                  <Text style={[styles.diversionValue, { color: lostDiversionColor }]}>
+                    {formatPercent(stats!.lostDiversion.rate)}
+                  </Text>
+                </View>
+                <View style={styles.track}>
+                  <View style={[styles.fill, { width: `${Math.min(100, stats!.lostDiversion.rate)}%`, backgroundColor: lostDiversionColor }]} />
+                </View>
+                <Text style={styles.diversionHint}>
+                  {formatWeight(stats!.lostDiversion.lostWeight)} de {formatWeight(stats!.lostDiversion.divertibleWeight)} enviados ao aterro poderiam ter sido desviados.
+                </Text>
+              </Card>
+            )}
+
+            {stats!.perCapita.weighingsWithPeople > 0 && (
+              <Card>
+                <Text style={styles.cardTitle}>Geração Per Capita</Text>
+                <Text style={styles.diversionValue}>{formatWeight(stats!.perCapita.avgKgPerPerson)}/pessoa</Text>
+                <Text style={styles.diversionHint}>
+                  Média de geração por pessoa no período, com base em {stats!.perCapita.weighingsWithPeople} pesagem(ns) com quantidade de pessoas informada ({formatNumber(stats!.perCapita.totalPeople)} pessoas no total).
+                </Text>
+              </Card>
+            )}
 
             <Card>
               <Text style={styles.cardTitle}>Distribuição por Tipo de Resíduo</Text>

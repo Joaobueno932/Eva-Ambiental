@@ -82,6 +82,8 @@ export interface WeighingInput extends LocationColumns {
   weighing_date: string;
   weight_kg: number;
   notes?: string | null;
+  people_count?: number | null;
+  could_divert_from_landfill?: boolean | null;
   gps_lat?: number | null;
   gps_lng?: number | null;
   manual_location?: string | null;

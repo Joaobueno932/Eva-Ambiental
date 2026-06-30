@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
@@ -64,6 +64,8 @@ export function WeighingFormScreen() {
   const [treatmentTypeId, setTreatmentTypeId] = useState('');
   const [recipientId, setRecipientId] = useState('');
   const [weight, setWeight] = useState('');
+  const [peopleCount, setPeopleCount] = useState('');
+  const [couldDivert, setCouldDivert] = useState(false);
   const [notes, setNotes] = useState('');
   const [dateStr, setDateStr] = useState(dayjs().format('DD/MM/YYYY'));
   const [timeStr, setTimeStr] = useState(dayjs().format('HH:mm'));
@@ -107,6 +109,8 @@ export function WeighingFormScreen() {
           setTreatmentTypeId(existing.treatment_type_id);
           setRecipientId(existing.recipient_id ?? '');
           setWeight(String(existing.weight_kg));
+          setPeopleCount(existing.people_count ? String(existing.people_count) : '');
+          setCouldDivert(existing.could_divert_from_landfill ?? false);
           setNotes(existing.notes ?? '');
           setDateStr(dayjs(existing.weighing_date).format('DD/MM/YYYY'));
           setTimeStr(dayjs(existing.weighing_date).format('HH:mm'));
@@ -136,6 +140,12 @@ export function WeighingFormScreen() {
         .filter((u) => !clientId || u.client_id === clientId)
         .map((u) => ({ label: u.name, value: u.id })),
     [units, clientId]
+  );
+
+  // Destinatário atualmente selecionado (para verificar is_landfill).
+  const selectedRecipient = useMemo(
+    () => recipients.find((r) => r.id === recipientId) ?? null,
+    [recipients, recipientId],
   );
 
   // Rastreia se o endereço foi preenchido por auto-fill (vs. dado salvo ou digitação manual).
@@ -182,6 +192,10 @@ export function WeighingFormScreen() {
     if (!treatmentTypeId) e.treatmentTypeId = 'Selecione o tratamento.';
     const w = parseFloat(weight.replace(',', '.'));
     if (!weight || isNaN(w) || w <= 0) e.weight = 'Informe um peso válido (kg).';
+    if (peopleCount) {
+      const pc = parseInt(peopleCount, 10);
+      if (isNaN(pc) || pc <= 0 || !Number.isInteger(pc)) e.peopleCount = 'Informe um número inteiro maior que zero.';
+    }
     const dt = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm', true);
     if (!dt.isValid()) e.date = 'Data/hora inválida (DD/MM/AAAA HH:mm).';
     setErrors(e);
@@ -219,6 +233,9 @@ export function WeighingFormScreen() {
         weighing_date: weighingDate,
         weight_kg: parseFloat(weight.replace(',', '.')),
         notes: notes || null,
+        people_count: peopleCount ? parseInt(peopleCount, 10) : null,
+        // Só salvo quando o destinatário for aterro; caso contrário null (não se aplica).
+        could_divert_from_landfill: selectedRecipient?.is_landfill ? couldDivert : null,
         gps_lat: isCamera ? photo?.location?.latitude ?? null : null,
         gps_lng: isCamera ? photo?.location?.longitude ?? null : null,
         manual_location: isCamera ? null : manualLocation || manualDetails.formattedAddress || null,
@@ -301,9 +318,33 @@ export function WeighingFormScreen() {
             <Select
               label="Destinatário"
               placeholder="Opcional"
-              options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name, value: r.id }))]}
+              options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name + (r.is_landfill ? ' (Aterro)' : ''), value: r.id }))]}
               value={recipientId}
               onChange={setRecipientId}
+            />
+            {selectedRecipient?.is_landfill && (
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>Poderia desviar do aterro?</Text>
+                  <Text style={styles.switchHint}>
+                    Este resíduo poderia ter sido destinado de outra forma em vez de ir para aterro.
+                  </Text>
+                </View>
+                <Switch
+                  value={couldDivert}
+                  onValueChange={setCouldDivert}
+                  trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                  thumbColor={couldDivert ? colors.green : colors.gray}
+                />
+              </View>
+            )}
+            <Input
+              label="Quantidade de pessoas na unidade"
+              placeholder="Opcional — base para cálculo per capita"
+              value={peopleCount}
+              onChangeText={setPeopleCount}
+              keyboardType="number-pad"
+              error={errors.peopleCount}
             />
             <Input
               label="Observações"
@@ -406,4 +447,16 @@ const styles = StyleSheet.create({
   gpsInfo: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
   gpsText: { color: colors.greenDark, fontSize: 13 },
   gpsCoords: { color: colors.grayText, fontSize: 12, marginTop: 4 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  switchLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
+  switchHint: { color: colors.grayText, fontSize: 12, marginTop: 2, lineHeight: 16 },
 });

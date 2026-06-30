@@ -1,13 +1,14 @@
 /**
  * Gerador de planilhas modelo (.xlsx) para download dentro do app.
  * As colunas devem corresponder EXATAMENTE ao que o importador espera (imports.ts).
+ *
+ * IMPORTANTE: xlsx é importado dinamicamente dentro de cada função para evitar que
+ * o módulo execute código de inicialização durante a inicialização do app Android.
  */
-import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
-async function shareXlsx(wb: XLSX.WorkBook, fileName: string, dialogTitle: string): Promise<void> {
-  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+async function shareFile(b64: string, fileName: string, dialogTitle: string): Promise<void> {
   const uri = `${FileSystem.cacheDirectory}${fileName}`;
   await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
   if (await Sharing.isAvailableAsync()) {
@@ -22,12 +23,9 @@ async function shareXlsx(wb: XLSX.WorkBook, fileName: string, dialogTitle: strin
  * Modelo de pesagens.
  * Colunas (posição importa): Data | Cliente | Unidade/Localidade | Destinatário
  *   | Tipo de Resíduo | Tipo de Tratamento | Peso (kg) | Observações
- * - Cliente, Unidade e Destinatário devem já existir no sistema (bloqueantes).
- * - Tipo de Resíduo e Tipo de Tratamento são criados automaticamente se ausentes.
- * - Peso usa vírgula ou ponto como separador decimal.
- * - Destinatário e Observações são opcionais (podem ficar em branco).
  */
 export async function downloadWeighingsTemplate(): Promise<void> {
+  const XLSX = await import('xlsx');
   const headers = [
     'Data',
     'Cliente',
@@ -36,31 +34,30 @@ export async function downloadWeighingsTemplate(): Promise<void> {
     'Tipo de Resíduo',
     'Tipo de Tratamento',
     'Peso (kg)',
+    'Qtd de Pessoas',
+    'Poderia desviar do aterro?',
     'Observações',
   ];
   const rows = [
-    ['28/06/2026', 'Cliente Demonstração S/A', 'Unidade Campo Grande', 'Cooperativa Recicla', 'Cartonagem', 'Reciclagem', '7,50', 'Coleta semanal'],
-    ['29/06/2026', 'Cliente Demonstração S/A', 'Unidade Campo Grande', '', 'Plástico', 'Aterro', '12,30', ''],
-    ['30/06/2026', 'Empresa Exemplo Ltda', 'Galpão Leste', 'Aterro Sanitário Regional', 'Resíduo Orgânico', 'Compostagem', '50,00', 'Geração semanal'],
+    ['28/06/2026', 'Cliente Demonstração S/A', 'Unidade Campo Grande', 'Cooperativa Recicla', 'Cartonagem', 'Reciclagem', '7,50', '50', '', 'Coleta semanal'],
+    ['29/06/2026', 'Cliente Demonstração S/A', 'Unidade Campo Grande', 'Aterro Sanitário Regional', 'Plástico', 'Aterro', '12,30', '', 'Sim', ''],
+    ['30/06/2026', 'Empresa Exemplo Ltda', 'Galpão Leste', 'Aterro Sanitário Regional', 'Resíduo Orgânico', 'Compostagem', '50,00', '120', 'Não', 'Geração semanal'],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 20) }));
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Pesagens');
-  await shareXlsx(wb, 'modelo-pesagens.xlsx', 'Modelo de Importação de Pesagens');
+  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  await shareFile(b64, 'modelo-pesagens.xlsx', 'Modelo de Importação de Pesagens');
 }
 
 /**
  * Modelo de clientes com unidades/localidades.
  * Colunas (posição importa): Cliente | CNPJ/CPF | Unidade/Localidade | Endereço | Cidade | Estado
- * - Clientes e unidades já existentes são ignorados (sem duplicatas).
- * - Estado é concatenado ao endereço da unidade ao salvar.
- * - CNPJ/CPF é usado como chave de deduplicação (prioritário sobre nome).
- * - Uma linha por unidade; repita o cliente nas linhas com mesma unidade.
  */
 export async function downloadClientsTemplate(): Promise<void> {
+  const XLSX = await import('xlsx');
   const headers = ['Cliente', 'CNPJ/CPF', 'Unidade/Localidade', 'Endereço', 'Cidade', 'Estado'];
   const rows = [
     ['Empresa ABC Ltda', '12.345.678/0001-90', 'Unidade Paulista', 'Av. Paulista, 1000', 'São Paulo', 'SP'],
@@ -70,30 +67,29 @@ export async function downloadClientsTemplate(): Promise<void> {
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 22) }));
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Clientes e Unidades');
-  await shareXlsx(wb, 'modelo-clientes-unidades.xlsx', 'Modelo de Clientes e Unidades');
+  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  await shareFile(b64, 'modelo-clientes-unidades.xlsx', 'Modelo de Clientes e Unidades');
 }
 
 /**
  * Modelo de destinatários.
  * Colunas (posição importa): Nome/Razão Social | CNPJ/CPF
- * - Destinatários já existentes são ignorados (sem duplicatas).
- * - CNPJ/CPF é usado como chave de deduplicação (prioritário sobre nome).
  */
 export async function downloadRecipientsTemplate(): Promise<void> {
-  const headers = ['Nome/Razão Social', 'CNPJ/CPF'];
+  const XLSX = await import('xlsx');
+  const headers = ['Nome/Razão Social', 'CNPJ/CPF', 'É aterro?'];
   const rows = [
-    ['Cooperativa Recicla SP', '98.765.432/0001-10'],
-    ['Aterro Sanitário Regional', '11.222.333/0001-44'],
-    ['Empresa de Reciclagem do Vale', '55.666.777/0001-88'],
+    ['Cooperativa Recicla SP', '98.765.432/0001-10', 'Não'],
+    ['Aterro Sanitário Regional', '11.222.333/0001-44', 'Sim'],
+    ['Empresa de Reciclagem do Vale', '55.666.777/0001-88', 'Não'],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 28) }));
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Destinatários');
-  await shareXlsx(wb, 'modelo-destinatarios.xlsx', 'Modelo de Destinatários');
+  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  await shareFile(b64, 'modelo-destinatarios.xlsx', 'Modelo de Destinatários');
 }

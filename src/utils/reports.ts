@@ -1,7 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as XLSX from 'xlsx';
+import type * as XLSX from 'xlsx';
 import { Weighing } from '@/types';
 import {
   approvalLabel,
@@ -243,13 +243,18 @@ export async function generateCsvReport(ctx: ReportContext): Promise<void> {
   stats.byTreatment.forEach((t) => lines.push(csvRow([t.name, Number(t.weight).toFixed(2).replace('.', ',')])));
   lines.push('');
   lines.push(csvRow(['DETALHAMENTO DAS PESAGENS']));
-  lines.push(csvRow(['Data','Hora','Cliente','Unidade','Resíduo','Peso (kg)','Tratamento','Destinatário','Status de Aprovação','Aprovado por','Responsável','Qtd Fotos','Origem da Imagem','Nome do Local','Rua','Bairro','CEP','Cidade','Estado','Endereço Completo','Latitude','Longitude','Observações','Cancelada','Motivo do Cancelamento']));
+  lines.push(csvRow(['Data','Hora','Cliente','Unidade','Resíduo','Peso (kg)','Qtd de Pessoas','Tratamento','Destinatário','Destinatário é Aterro','Poderia Desviar do Aterro','Status de Aprovação','Aprovado por','Responsável','Qtd Fotos','Origem da Imagem','Nome do Local','Rua','Bairro','CEP','Cidade','Estado','Endereço Completo','Latitude','Longitude','Observações','Cancelada','Motivo do Cancelamento']));
   weighings.forEach((w) => {
+    const isLandfill = w.recipient?.is_landfill ?? false;
+    const couldDivert = w.could_divert_from_landfill;
     lines.push(csvRow([
       formatDate(w.weighing_date), formatTime(w.weighing_date),
       w.client?.name ?? '', w.unit?.name ?? '', w.waste_type?.name ?? '',
       Number(w.weight_kg ?? 0).toFixed(2).replace('.', ','),
+      w.people_count != null ? w.people_count : '',
       w.treatment_type?.name ?? '', w.recipient?.name ?? '',
+      isLandfill ? 'Sim' : 'Não',
+      isLandfill ? (couldDivert === true ? 'Sim' : couldDivert === false ? 'Não' : 'Não informado') : 'Não se aplica',
       approvalLabel[w.approval_status] ?? w.approval_status,
       w.approver?.full_name ?? '', w.creator?.full_name ?? '',
       w.photos?.length ?? 0,
@@ -278,6 +283,8 @@ export async function generateCsvReport(ctx: ReportContext): Promise<void> {
 // já produzem um arquivo profissional compatível com Excel, Sheets e LibreOffice.
 
 type XCell = XLSX.CellObject | string | number | null | undefined;
+// XLSXLib: tipo do módulo xlsx carregado dinamicamente — não importado em runtime.
+type XLSXLib = typeof XLSX;
 
 /** Célula numérica com código de formato de número Excel. */
 function nc(v: number | null | undefined, z = '#,##0.00'): XCell {
@@ -298,7 +305,7 @@ function mr(row: number, c1: number, c2: number): XLSX.Range {
 
 // ── Aba 1: Resumo ──────────────────────────────────────────────────────────────
 
-function buildResumoSheet(ctx: ReportContext, cls: DiversionClass): XLSX.WorkSheet {
+function buildResumoSheet(ctx: ReportContext, cls: DiversionClass, xl: XLSXLib): XLSX.WorkSheet {
   const { stats, periodLabel } = ctx;
   const generatedAt = formatDateTime(new Date().toISOString());
   const totalWaste = stats.byWasteType.reduce((s, w) => s + w.weight, 0);
@@ -340,7 +347,7 @@ function buildResumoSheet(ctx: ReportContext, cls: DiversionClass): XLSX.WorkShe
     ['Total por Tratamentos (kg)', nc(totalTreat, '#,##0.00'), null, null],
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet(rows as any[][]);
+  const ws = xl.utils.aoa_to_sheet(rows as any[][]);
   ws['!merges'] = [
     mr(0, 0, 3),   // A1:D1
     mr(1, 0, 3),   // A2:D2
@@ -354,7 +361,7 @@ function buildResumoSheet(ctx: ReportContext, cls: DiversionClass): XLSX.WorkShe
 
 // ── Aba 2: Distribuição ────────────────────────────────────────────────────────
 
-function buildDistSheet(ctx: ReportContext): XLSX.WorkSheet {
+function buildDistSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
   const { stats, periodLabel } = ctx;
   const totalWaste = stats.byWasteType.reduce((s, w) => s + w.weight, 0);
   const totalTreat = stats.byTreatment.reduce((s, t) => s + t.weight, 0);
@@ -396,7 +403,7 @@ function buildDistSheet(ctx: ReportContext): XLSX.WorkSheet {
     push('TOTAL', nc(totalTreat), nc(totalTreat > 0 ? 1 : 0, '0.0%'));
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(rows as any[][]);
+  const ws = xl.utils.aoa_to_sheet(rows as any[][]);
   ws['!merges'] = merges;
   ws['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 12 }];
   return ws;
@@ -405,8 +412,9 @@ function buildDistSheet(ctx: ReportContext): XLSX.WorkSheet {
 // ── Aba 3: Detalhamento ────────────────────────────────────────────────────────
 
 const DET_HEADERS: string[] = [
-  'Data', 'Hora', 'Cliente', 'Unidade', 'Resíduo', 'Peso (kg)',
-  'Tratamento', 'Destinatário', 'Status de Aprovação', 'Aprovado por',
+  'Data', 'Hora', 'Cliente', 'Unidade', 'Resíduo', 'Peso (kg)', 'Qtd de Pessoas',
+  'Tratamento', 'Destinatário', 'Destinatário é Aterro', 'Poderia Desviar do Aterro',
+  'Status de Aprovação', 'Aprovado por',
   'Responsável', 'Qtd Fotos', 'Origem da Imagem', 'Nome do Local',
   'Rua', 'Bairro', 'CEP', 'Cidade', 'Estado', 'Endereço Completo',
   'Latitude', 'Longitude', 'Observações', 'Cancelada', 'Motivo do Cancelamento',
@@ -414,16 +422,17 @@ const DET_HEADERS: string[] = [
 
 const DET_COLS: XLSX.ColInfo[] = [
   { wch: 12 }, { wch: 8 },  { wch: 24 }, { wch: 24 }, { wch: 24 },
-  { wch: 13 }, { wch: 22 }, { wch: 24 }, { wch: 18 }, { wch: 22 },
-  { wch: 22 }, { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 26 },
-  { wch: 18 }, { wch: 10 }, { wch: 16 }, { wch: 8 },  { wch: 36 },
-  { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 10 }, { wch: 30 },
+  { wch: 13 }, { wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 16 },
+  { wch: 20 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
+  { wch: 16 }, { wch: 22 }, { wch: 26 }, { wch: 18 }, { wch: 10 },
+  { wch: 16 }, { wch: 8 },  { wch: 36 }, { wch: 14 }, { wch: 14 },
+  { wch: 30 }, { wch: 10 }, { wch: 30 },
 ];
 
-function buildDetSheet(ctx: ReportContext): XLSX.WorkSheet {
+function buildDetSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
   const { weighings, periodLabel } = ctx;
   const N = DET_HEADERS.length;           // 25
-  const lastCol = XLSX.utils.encode_col(N - 1); // 'Y'
+  const lastCol = xl.utils.encode_col(N - 1); // 'Y'
   const empty = Array<null>(N - 1).fill(null);
 
   const rows: XCell[][] = [];
@@ -449,6 +458,11 @@ function buildDetSheet(ctx: ReportContext): XLSX.WorkSheet {
     merges.push(mr(rows.length - 1, 0, N - 1));
   } else {
     weighings.forEach((w) => {
+      const isLandfill = w.recipient?.is_landfill ?? false;
+      const couldDivert = w.could_divert_from_landfill;
+      const couldDivertLabel = isLandfill
+        ? (couldDivert === true ? 'Sim' : couldDivert === false ? 'Não' : 'Não informado')
+        : 'Não se aplica';
       rows.push([
         dc(w.weighing_date, 'dd/mm/yyyy'),          // Data
         dc(w.weighing_date, 'hh:mm'),               // Hora
@@ -456,8 +470,11 @@ function buildDetSheet(ctx: ReportContext): XLSX.WorkSheet {
         w.unit?.name ?? '',                          // Unidade
         w.waste_type?.name ?? '',                    // Resíduo
         nc(w.weight_kg, '#,##0.00'),                 // Peso (kg)
+        w.people_count != null ? nc(w.people_count, '#,##0') : null, // Qtd de Pessoas
         w.treatment_type?.name ?? '',                // Tratamento
         w.recipient?.name ?? '',                     // Destinatário
+        isLandfill ? 'Sim' : 'Não',                 // Destinatário é Aterro
+        couldDivertLabel,                            // Poderia Desviar do Aterro
         approvalLabel[w.approval_status] ?? w.approval_status, // Status
         w.approver?.full_name ?? '',                 // Aprovado por
         w.creator?.full_name ?? '',                  // Responsável
@@ -480,7 +497,7 @@ function buildDetSheet(ctx: ReportContext): XLSX.WorkSheet {
     });
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(rows as any[][]);
+  const ws = xl.utils.aoa_to_sheet(rows as any[][]);
   ws['!merges'] = merges;
   ws['!cols'] = DET_COLS;
 
@@ -506,15 +523,16 @@ function buildDetSheet(ctx: ReportContext): XLSX.WorkSheet {
  *  • Detalhamento — listagem completa com 25 colunas, AutoFilter e cabeçalho fixo
  */
 export async function generateXlsxReport(ctx: ReportContext): Promise<void> {
+  const xl = await import('xlsx');
   const cls = classifyDiversion(ctx.stats.diversionRate);
   const dateStr = new Date().toISOString().slice(0, 10);
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, buildResumoSheet(ctx, cls), 'Resumo');
-  XLSX.utils.book_append_sheet(wb, buildDistSheet(ctx), 'Distribuição');
-  XLSX.utils.book_append_sheet(wb, buildDetSheet(ctx), 'Detalhamento');
+  const wb = xl.utils.book_new();
+  xl.utils.book_append_sheet(wb, buildResumoSheet(ctx, cls, xl), 'Resumo');
+  xl.utils.book_append_sheet(wb, buildDistSheet(ctx, xl), 'Distribuição');
+  xl.utils.book_append_sheet(wb, buildDetSheet(ctx, xl), 'Detalhamento');
 
-  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  const b64 = xl.write(wb, { type: 'base64', bookType: 'xlsx' });
   const fileUri = `${FileSystem.cacheDirectory}relatorio-controle-monitoramento-${dateStr}.xlsx`;
   await FileSystem.writeAsStringAsync(fileUri, b64, {
     encoding: FileSystem.EncodingType.Base64,

@@ -2,7 +2,6 @@
  * Serviço de importação de dados via planilha Excel (.xlsx).
  * Admin-only: verificação por `usePermissions` na tela + assertAdmin() em cada execute.
  */
-import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import dayjs from 'dayjs';
@@ -35,8 +34,20 @@ function normalizeDoc(d: unknown): string {
   return String(d ?? '').replace(/\D/g, '');
 }
 
+/**
+ * Interpreta um valor booleano de célula Excel/CSV.
+ * Aceita: Sim/Não, S/N, true/false, 1/0, Yes/No (qualquer capitalização).
+ * Retorna null se a célula estiver vazia.
+ */
+function parseBool(s: unknown): boolean | null {
+  const v = String(s ?? '').trim().toLowerCase();
+  if (!v) return null;
+  return v === 'sim' || v === 's' || v === 'true' || v === '1' || v === 'yes';
+}
+
 /** Lê um arquivo .xlsx e retorna as linhas como array de strings (sem linhas vazias). */
 async function readXlsxRows(uri: string): Promise<string[][]> {
+  const XLSX = await import('xlsx');
   const content = await FileSystem.readAsStringAsync(uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
@@ -81,7 +92,8 @@ export async function pickXlsxFile(): Promise<{ uri: string; name: string } | nu
 
 // ─── IMPORTAÇÃO DE PESAGENS ────────────────────────────────────────────────────
 // Colunas da planilha: Data | Cliente | Unidade | Destinatário | Tipo de Resíduo
-//                      | Tipo de Tratamento | Peso (kg) | Observações
+//                      | Tipo de Tratamento | Peso (kg) | Qtd de Pessoas
+//                      | Poderia desviar do aterro? | Observações
 // Imagens nunca são importadas: pesagens são criadas sem foto para anexo posterior.
 
 export interface WeighingRowParsed {
@@ -89,9 +101,12 @@ export interface WeighingRowParsed {
   clientId: string;
   unitId: string;
   recipientId: string | null;
+  recipientIsLandfill: boolean;
   wasteTypeId: string;
   treatmentTypeId: string;
   weight: number;
+  peopleCount: number | null;
+  couldDivertFromLandfill: boolean | null;
   notes: string | null;
   _wasteTypeName: string;
   _treatmentTypeName: string;
@@ -141,6 +156,8 @@ export async function validateWeighingsFile(uri: string): Promise<WeighingsValid
       wasteTypeName = '',
       treatmentTypeName = '',
       weightRaw = '',
+      peopleCountRaw = '',
+      couldDivertRaw = '',
       notesRaw = '',
     ] = row;
 
@@ -175,6 +192,7 @@ export async function validateWeighingsFile(uri: string): Promise<WeighingsValid
 
     // ── Destinatário (opcional) ──
     let recipientId: string | null = null;
+    let recipientIsLandfill = false;
     const recipientStr = String(recipientName).trim();
     if (recipientStr) {
       const recipient = recipients.find((r) => normalize(r.name) === normalize(recipientStr));
@@ -183,6 +201,7 @@ export async function validateWeighingsFile(uri: string): Promise<WeighingsValid
         return;
       }
       recipientId = recipient.id;
+      recipientIsLandfill = recipient.is_landfill === true;
     }
 
     // ── Tipo de Resíduo (auto-cria se ausente) ──
@@ -211,14 +230,29 @@ export async function validateWeighingsFile(uri: string): Promise<WeighingsValid
       return;
     }
 
+    // ── Qtd de Pessoas (opcional) ──
+    const pcStr = String(peopleCountRaw).trim();
+    let peopleCount: number | null = null;
+    if (pcStr) {
+      const pc = parseInt(pcStr, 10);
+      if (!isNaN(pc) && pc > 0) peopleCount = pc;
+    }
+
+    // ── Poderia desviar do aterro? (apenas quando destinatário for aterro) ──
+    const couldDivertParsed = parseBool(couldDivertRaw);
+    const couldDivertFromLandfill: boolean | null = recipientIsLandfill ? (couldDivertParsed ?? null) : null;
+
     validRows.push({
       date: parsed.toISOString(),
       clientId: client.id,
       unitId: unit.id,
       recipientId,
+      recipientIsLandfill,
       wasteTypeId: wasteType?.id ?? '',
       treatmentTypeId: treatType?.id ?? '',
       weight,
+      peopleCount,
+      couldDivertFromLandfill,
       notes: String(notesRaw).trim() || null,
       _wasteTypeName: wasteStr,
       _treatmentTypeName: treatStr,
@@ -304,6 +338,8 @@ export async function executeWeighingsImport(
     recipient_id: row.recipientId,
     weighing_date: row.date,
     weight_kg: row.weight,
+    people_count: row.peopleCount,
+    could_divert_from_landfill: row.couldDivertFromLandfill,
     notes: row.notes,
     created_by: userId,
     approval_status: 'pending',
@@ -506,11 +542,11 @@ export async function executeClientsImport(
 }
 
 // ─── IMPORTAÇÃO DE DESTINATÁRIOS ───────────────────────────────────────────────
-// Colunas: Nome/Razão Social | CNPJ/CPF
+// Colunas: Nome/Razão Social | CNPJ/CPF | É aterro?
 // Duplicidade: verificada por CNPJ/CPF (prioritário) OU nome normalizado.
 
 export interface RecipientsParseResult {
-  rows: Array<{ name: string; document: string | null; isNew: boolean }>;
+  rows: Array<{ name: string; document: string | null; is_landfill: boolean; isNew: boolean }>;
   preview: { totalRows: number; newRecipients: string[]; existingRecipients: string[] };
 }
 
@@ -533,7 +569,7 @@ export async function validateRecipientsFile(uri: string): Promise<RecipientsPar
   const seen = new Set<string>();
 
   for (const row of dataRows) {
-    const [name = '', document = ''] = row;
+    const [name = '', document = '', isLandfillRaw = ''] = row;
     const nameStr = String(name).trim();
     if (!nameStr) continue;
 
@@ -547,7 +583,8 @@ export async function validateRecipientsFile(uri: string): Promise<RecipientsPar
 
     const existing = (normDoc ? byDoc.get(normDoc) : undefined) ?? byName.get(normName);
     const isNew = !existing;
-    rows.push({ name: nameStr, document: String(document).trim() || null, isNew });
+    const is_landfill = parseBool(isLandfillRaw) ?? false;
+    rows.push({ name: nameStr, document: String(document).trim() || null, is_landfill, isNew });
     if (isNew) newRecipients.push(nameStr);
     else existingRecipients.push(nameStr);
   }
@@ -563,7 +600,7 @@ export async function executeRecipientsImport(result: RecipientsParseResult): Pr
     if (!row.isNew) continue;
     const { error } = await supabase
       .from('recipients')
-      .insert({ name: row.name, document: row.document, active: true });
+      .insert({ name: row.name, document: row.document, is_landfill: row.is_landfill, active: true });
     if (error) throw error;
     inserted++;
   }

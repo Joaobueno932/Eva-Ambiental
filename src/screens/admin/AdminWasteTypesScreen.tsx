@@ -6,6 +6,7 @@ import { WasteType } from '@/types';
 const fields: FieldConfig[] = [
   { key: 'name', label: 'Nome do resíduo', type: 'text', placeholder: 'Ex.: Papelão', required: true },
   { key: 'color', label: 'Cor (hex)', type: 'text', placeholder: '#63B32E', default: '#63B32E' },
+  { key: 'is_divertible', label: 'Pode ser desviado do aterro?', type: 'switch', default: false },
 ];
 
 export function AdminWasteTypesScreen() {

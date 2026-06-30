@@ -15,9 +15,10 @@ export async function getDashboardStats(range: DashboardRange = {}): Promise<Das
   let q = supabase
     .from('weighings')
     .select(
-      `id, weight_kg, approval_status,
-       waste_type:waste_types(name, color),
-       treatment_type:treatment_types(name, counts_as_diversion)`
+      `id, weight_kg, approval_status, people_count, could_divert_from_landfill,
+       waste_type:waste_types(name, color, is_divertible),
+       treatment_type:treatment_types(name, counts_as_diversion),
+       recipient:recipients(name, is_landfill)`
     )
     .neq('approval_status', 'rejected')
     .is('canceled_at', null); // pesagens canceladas não entram no painel
@@ -66,6 +67,21 @@ export async function getDashboardStats(range: DashboardRange = {}): Promise<Das
     supabase.from('units').select('id', { count: 'exact', head: true }).eq('active', true),
   ]);
 
+  // ── Geração per capita ──────────────────────────────────────────────────────
+  const rowsWithPeople = rows.filter((w) => (w.people_count ?? 0) > 0);
+  const totalPeople = rowsWithPeople.reduce((acc, w) => acc + (w.people_count ?? 0), 0);
+  const weightWithPeople = rowsWithPeople.reduce((acc, w) => acc + Number(w.weight_kg ?? 0), 0);
+  const avgKgPerPerson = totalPeople > 0 ? weightWithPeople / totalPeople : 0;
+
+  // ── Potencial de desvio perdido ──────────────────────────────────────────────
+  // Base: pesagens enviadas para destinatário marcado como aterro (recipient.is_landfill).
+  // Potencial perdido: dessas, as marcadas com could_divert_from_landfill = true.
+  const landfillRows = rows.filter((w) => (w.recipient as any)?.is_landfill === true);
+  const divertibleWeight = landfillRows.reduce((acc, w) => acc + Number(w.weight_kg ?? 0), 0);
+  const lostRows = landfillRows.filter((w) => (w as any).could_divert_from_landfill === true);
+  const lostWeight = lostRows.reduce((acc, w) => acc + Number(w.weight_kg ?? 0), 0);
+  const lostDiversionRate = divertibleWeight > 0 ? (lostWeight / divertibleWeight) * 100 : 0;
+
   return {
     totalWeighings,
     totalWeight,
@@ -74,5 +90,15 @@ export async function getDashboardStats(range: DashboardRange = {}): Promise<Das
     diversionRate,
     byWasteType,
     byTreatment,
+    perCapita: {
+      avgKgPerPerson,
+      totalPeople,
+      weighingsWithPeople: rowsWithPeople.length,
+    },
+    lostDiversion: {
+      rate: lostDiversionRate,
+      lostWeight,
+      divertibleWeight,
+    },
   };
 }

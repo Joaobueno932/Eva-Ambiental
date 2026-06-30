@@ -67,6 +67,8 @@ export interface WasteType {
   id: string;
   name: string;
   color?: string | null;
+  /** Indica se o resíduo tem potencial de ser desviado do aterro (para cálculo de desvio perdido). */
+  is_divertible?: boolean;
   active: boolean;
   created_at: string;
 }
@@ -85,6 +87,8 @@ export interface Recipient {
   document?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** Indica se este destinatário representa aterro/disposição final. */
+  is_landfill?: boolean;
   active: boolean;
   created_at: string;
 }
@@ -117,6 +121,14 @@ export interface Weighing extends LocationColumns {
   approved_at?: string | null;
   rejection_reason?: string | null;
   notes?: string | null;
+  /** Quantidade de pessoas na unidade no momento da pesagem (base para indicador per capita). */
+  people_count?: number | null;
+  /**
+   * Indica se este resíduo poderia ter sido desviado do aterro.
+   * Relevante apenas quando o destinatário é aterro (recipient.is_landfill = true).
+   * null = não informado / não se aplica.
+   */
+  could_divert_from_landfill?: boolean | null;
   gps_lat?: number | null;
   gps_lng?: number | null;
   manual_location?: string | null;
@@ -151,4 +163,16 @@ export interface DashboardStats {
   diversionRate: number;
   byWasteType: { name: string; color: string; weight: number }[];
   byTreatment: { name: string; weight: number }[];
+  /** Geração per capita: calculado a partir de pesagens com people_count informado. */
+  perCapita: {
+    avgKgPerPerson: number;
+    totalPeople: number;
+    weighingsWithPeople: number;
+  };
+  /** Resíduos potencialmente desviáveis que foram para aterro. */
+  lostDiversion: {
+    rate: number;
+    lostWeight: number;
+    divertibleWeight: number;
+  };
 }
