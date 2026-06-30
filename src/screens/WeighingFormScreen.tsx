@@ -363,32 +363,35 @@ export function WeighingFormScreen() {
             <Text style={styles.sectionTitle}>Foto da pesagem</Text>
             <PhotoPicker value={photo} onChange={onPhotoChange} />
 
-            {/* Checkbox para usar endereço da unidade (aparece quando há foto E unidade selecionada) */}
-            {photo !== null && unitId ? (
-              <View style={styles.unitAddressRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
-                  {selectedUnit && !selectedUnit.street && !selectedUnit.neighborhood && !selectedUnit.city && !selectedUnit.address && (
-                    <Text style={[styles.switchHint, { color: colors.warning }]}>
-                      Esta unidade não possui endereço cadastrado.
-                    </Text>
-                  )}
-                </View>
-                <Switch
-                  value={useUnitAddress}
-                  onValueChange={handleUseUnitAddress}
-                  trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
-                  thumbColor={useUnitAddress ? colors.green : colors.gray}
-                />
-              </View>
-            ) : null}
-
             {/* Campos manuais para upload */}
             {photo?.imageSource === 'upload' && (
               <View style={styles.uploadFields}>
                 <Text style={styles.uploadHint}>
                   Como a imagem foi anexada, informe os dados manualmente (opcional).
                 </Text>
+
+                {/* Checkbox para usar endereço da unidade — aparece dentro do bloco de upload, logo antes dos campos de endereço */}
+                {unitId ? (
+                  <View style={styles.unitAddressRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
+                      {selectedUnit &&
+                        !selectedUnit.street && !selectedUnit.neighborhood &&
+                        !selectedUnit.city && !selectedUnit.address && (
+                        <Text style={[styles.switchHint, { color: colors.warning }]}>
+                          Esta unidade não possui endereço cadastrado.
+                        </Text>
+                      )}
+                    </View>
+                    <Switch
+                      value={useUnitAddress}
+                      onValueChange={handleUseUnitAddress}
+                      trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                      thumbColor={useUnitAddress ? colors.green : colors.gray}
+                    />
+                  </View>
+                ) : null}
+
                 <Input
                   label="Localização manual / ponto de referência"
                   placeholder="Ex.: Galpão 2, Doca de resíduos"
