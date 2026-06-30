@@ -1,6 +1,3 @@
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
 import type * as XLSX from 'xlsx';
 import { Weighing } from '@/types';
 import {
@@ -200,6 +197,10 @@ function buildHtml(ctx: ReportContext): string {
 
 /** Gera o PDF e abre o compartilhamento. */
 export async function generatePdfReport(ctx: ReportContext): Promise<void> {
+  const [Print, Sharing] = await Promise.all([
+    import('expo-print'),
+    import('expo-sharing'),
+  ]);
   const html = buildHtml(ctx);
   const { uri } = await Print.printToFileAsync({ html });
   if (await Sharing.isAvailableAsync()) {
@@ -220,6 +221,10 @@ function csvRow(cells: unknown[]): string {
 
 /** Gera CSV estruturado (separador ; — compatível com Excel pt-BR) e compartilha. */
 export async function generateCsvReport(ctx: ReportContext): Promise<void> {
+  const [FileSystem, Sharing] = await Promise.all([
+    import('expo-file-system/legacy'),
+    import('expo-sharing'),
+  ]);
   const { stats, weighings, periodLabel } = ctx;
   const cls = classifyDiversion(stats.diversionRate);
   const today = formatDate(new Date().toISOString());
@@ -523,7 +528,11 @@ function buildDetSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
  *  • Detalhamento — listagem completa com 25 colunas, AutoFilter e cabeçalho fixo
  */
 export async function generateXlsxReport(ctx: ReportContext): Promise<void> {
-  const xl = await import('xlsx');
+  const [xl, FileSystem, Sharing] = await Promise.all([
+    import('xlsx'),
+    import('expo-file-system/legacy'),
+    import('expo-sharing'),
+  ]);
   const cls = classifyDiversion(ctx.stats.diversionRate);
   const dateStr = new Date().toISOString().slice(0, 10);
 
