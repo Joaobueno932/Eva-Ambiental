@@ -227,15 +227,32 @@ export function WeighingDetailsScreen() {
         <Card>
           <Text style={styles.sectionTitle}>Status de Aprovação</Text>
           <Info icon="ribbon-outline" label="Status" value={undefined}>
-            <StatusBadge status={weighing.approval_status} />
+            {isCanceled
+              ? <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />
+              : <StatusBadge status={weighing.approval_status} />}
           </Info>
-          <Info icon="person-circle-outline" label="Aprovado/avaliado por" value={weighing.approver?.full_name ?? '-'} />
-          <Info icon="calendar-outline" label="Data da avaliação" value={weighing.approved_at ? formatDateTime(weighing.approved_at) : '-'} />
-          {weighing.approval_status === 'rejected' && (
-            <View style={styles.rejection}>
-              <Text style={styles.rejectionTitle}>Motivo da rejeição</Text>
-              <Text style={styles.rejectionText}>{weighing.rejection_reason ?? '-'}</Text>
-            </View>
+          {isCanceled ? (
+            <>
+              <Info icon="person-remove-outline" label="Cancelada por" value={weighing.canceler?.full_name ?? '-'} />
+              <Info icon="calendar-outline" label="Data do cancelamento" value={formatDateTime(weighing.canceled_at!)} />
+              {weighing.cancellation_reason ? (
+                <View style={styles.cancelReasonBox}>
+                  <Text style={styles.cancelReasonTitle}>Motivo do cancelamento</Text>
+                  <Text style={styles.cancelReasonText}>{weighing.cancellation_reason}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Info icon="person-circle-outline" label="Aprovado/avaliado por" value={weighing.approver?.full_name ?? '-'} />
+              <Info icon="calendar-outline" label="Data da avaliação" value={weighing.approved_at ? formatDateTime(weighing.approved_at) : '-'} />
+              {weighing.approval_status === 'rejected' && (
+                <View style={styles.rejection}>
+                  <Text style={styles.rejectionTitle}>Motivo da rejeição</Text>
+                  <Text style={styles.rejectionText}>{weighing.rejection_reason ?? '-'}</Text>
+                </View>
+              )}
+            </>
           )}
         </Card>
 
