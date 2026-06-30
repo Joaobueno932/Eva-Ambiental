@@ -59,9 +59,6 @@ function buildHtml(ctx: ReportContext): string {
   const cls = classifyDiversion(stats.diversionRate);
   const generatedAt = formatDateTime(new Date().toISOString());
 
-  const activeWeighings = weighings.filter((w) => !w.canceled_at);
-  const canceledCount = weighings.length - activeWeighings.length;
-
   const wasteRows = stats.byWasteType
     .map((w) => `<tr><td>${escapeHtml(w.name)}</td><td class="right">${formatWeight(w.weight)}</td></tr>`)
     .join('');
@@ -71,7 +68,7 @@ function buildHtml(ctx: ReportContext): string {
 
   const weighingCards = weighings
     .map((w, i) => {
-      const isCanceled = !!w.canceled_at;
+      const isCanceled = !!w.canceled_at; // nunca true quando ctx.weighings exclui canceladas
       const addr = weighingAddress(w);
       const coords = weighingCoords(w);
 
@@ -161,7 +158,6 @@ function buildHtml(ctx: ReportContext): string {
         Período: ${escapeHtml(periodLabel)}
         &nbsp;•&nbsp;
         Gerado em: ${generatedAt}
-        ${canceledCount > 0 ? `&nbsp;•&nbsp; <span style="color:#991B1B">${canceledCount} cancelada(s) exibida(s)</span>` : ''}
       </div>
     </div>
 
@@ -297,10 +293,14 @@ function nc(v: number | null | undefined, z = '#,##0.00'): XCell {
   return { v, t: 'n', z } as XLSX.CellObject;
 }
 
-/** Célula de data/hora derivada de ISO string, com formato de exibição Excel. */
-function dc(iso: string | null | undefined, z = 'dd/mm/yyyy'): XCell {
+/**
+ * Célula de data/hora como string formatada.
+ * Usar string garante exibição correta em qualquer versão do Excel / LibreOffice,
+ * evitando o problema de datas exibidas como números seriais.
+ */
+function dc(iso: string | null | undefined, type: 'date' | 'time' = 'date'): string | null {
   if (!iso) return null;
-  return { v: new Date(iso), t: 'd', z } as XLSX.CellObject;
+  return type === 'date' ? formatDate(iso) : formatTime(iso);
 }
 
 /** Merge helper: referência 0-indexed de célula inicial até célula final na mesma linha. */
@@ -436,8 +436,8 @@ const DET_COLS: XLSX.ColInfo[] = [
 
 function buildDetSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
   const { weighings, periodLabel } = ctx;
-  const N = DET_HEADERS.length;           // 25
-  const lastCol = xl.utils.encode_col(N - 1); // 'Y'
+  const N = DET_HEADERS.length;
+  const lastCol = xl.utils.encode_col(N - 1);
   const empty = Array<null>(N - 1).fill(null);
 
   const rows: XCell[][] = [];
@@ -469,8 +469,8 @@ function buildDetSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
         ? (couldDivert === true ? 'Sim' : couldDivert === false ? 'Não' : 'Não informado')
         : 'Não se aplica';
       rows.push([
-        dc(w.weighing_date, 'dd/mm/yyyy'),          // Data
-        dc(w.weighing_date, 'hh:mm'),               // Hora
+        dc(w.weighing_date, 'date'),                 // Data
+        dc(w.weighing_date, 'time'),                 // Hora
         w.client?.name ?? '',                        // Cliente
         w.unit?.name ?? '',                          // Unidade
         w.waste_type?.name ?? '',                    // Resíduo

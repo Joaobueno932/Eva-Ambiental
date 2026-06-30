@@ -56,7 +56,13 @@ export interface Unit {
   id: string;
   client_id: string;
   name: string;
+  /** Campos de endereço separados (novos). */
+  street?: string | null;
+  neighborhood?: string | null;
   city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  /** Legado: campo único de endereço. Mantido para compatibilidade. */
   address?: string | null;
   active: boolean;
   created_at: string;

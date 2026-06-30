@@ -362,9 +362,8 @@ export async function executeWeighingsImport(
 }
 
 // ─── IMPORTAÇÃO DE CLIENTES + UNIDADES ────────────────────────────────────────
-// Colunas: Cliente | CNPJ/CPF | Unidade/Localidade | Endereço | Cidade | Estado
+// Colunas: Cliente | CNPJ/CPF | Unidade/Localidade | Rua/Logradouro | Bairro | Cidade | Estado | CEP
 // Duplicidade: verificada por CNPJ/CPF (prioritário) OU nome normalizado.
-// Estado é concatenado ao campo de endereço da unidade.
 
 export interface ClientsParseResult {
   groups: Array<{
@@ -372,9 +371,11 @@ export interface ClientsParseResult {
     document: string | null;
     units: Array<{
       name: string;
-      address: string | null;
+      street: string | null;
+      neighborhood: string | null;
       city: string | null;
       state: string | null;
+      postal_code: string | null;
     }>;
     isNew: boolean;
   }>;
@@ -411,7 +412,7 @@ export async function validateClientsFile(uri: string): Promise<ClientsParseResu
     {
       clientName: string;
       document: string | null;
-      units: Array<{ name: string; address: string | null; city: string | null; state: string | null }>;
+      units: Array<{ name: string; street: string | null; neighborhood: string | null; city: string | null; state: string | null; postal_code: string | null }>;
       isNew: boolean;
     }
   >();
@@ -421,9 +422,11 @@ export async function validateClientsFile(uri: string): Promise<ClientsParseResu
       clientName = '',
       document = '',
       unitName = '',
-      address = '',
+      street = '',
+      neighborhood = '',
       city = '',
       state = '',
+      postal_code = '',
     ] = row;
     const cName = String(clientName).trim();
     if (!cName) continue;
@@ -445,9 +448,11 @@ export async function validateClientsFile(uri: string): Promise<ClientsParseResu
     if (uName) {
       groupMap.get(normName)!.units.push({
         name: uName,
-        address: String(address).trim() || null,
+        street: String(street).trim() || null,
+        neighborhood: String(neighborhood).trim() || null,
         city: String(city).trim() || null,
         state: String(state).trim() || null,
+        postal_code: String(postal_code).trim() || null,
       });
     }
   }
@@ -522,13 +527,14 @@ export async function executeClientsImport(
     for (const unit of group.units) {
       const key = unitKey(client.id, unit.name);
       if (!unitSet.has(key)) {
-        // Concatena estado ao endereço quando presente
-        const fullAddress = [unit.address, unit.state].filter(Boolean).join(', ') || null;
         const { error } = await supabase.from('units').insert({
           client_id: client.id,
           name: unit.name,
-          address: fullAddress,
+          street: unit.street,
+          neighborhood: unit.neighborhood,
           city: unit.city,
+          state: unit.state,
+          postal_code: unit.postal_code,
           active: true,
         });
         if (error) throw error;

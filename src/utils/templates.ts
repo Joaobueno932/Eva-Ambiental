@@ -54,15 +54,15 @@ export async function downloadWeighingsTemplate(): Promise<void> {
 
 /**
  * Modelo de clientes com unidades/localidades.
- * Colunas (posição importa): Cliente | CNPJ/CPF | Unidade/Localidade | Endereço | Cidade | Estado
+ * Colunas (posição importa): Cliente | CNPJ/CPF | Unidade/Localidade | Rua/Logradouro | Bairro | Cidade | Estado | CEP
  */
 export async function downloadClientsTemplate(): Promise<void> {
   const XLSX = await import('xlsx');
-  const headers = ['Cliente', 'CNPJ/CPF', 'Unidade/Localidade', 'Endereço', 'Cidade', 'Estado'];
+  const headers = ['Cliente', 'CNPJ/CPF', 'Unidade/Localidade', 'Rua / Logradouro', 'Bairro', 'Cidade', 'Estado', 'CEP'];
   const rows = [
-    ['Empresa ABC Ltda', '12.345.678/0001-90', 'Unidade Paulista', 'Av. Paulista, 1000', 'São Paulo', 'SP'],
-    ['Empresa ABC Ltda', '12.345.678/0001-90', 'Unidade Centro', 'Rua Direita, 500', 'São Paulo', 'SP'],
-    ['Outra Empresa SA', '98.765.432/0001-10', 'Galpão Principal', 'Rodovia BR-101, Km 20', 'Campinas', 'SP'],
+    ['Empresa ABC Ltda', '12.345.678/0001-90', 'Unidade Paulista', 'Av. Paulista, 1000', 'Bela Vista', 'São Paulo', 'SP', '01310-100'],
+    ['Empresa ABC Ltda', '12.345.678/0001-90', 'Unidade Centro', 'Rua Direita, 500', 'Centro', 'São Paulo', 'SP', '01003-001'],
+    ['Outra Empresa SA', '98.765.432/0001-10', 'Galpão Principal', 'Rodovia BR-101, Km 20', 'Distrito Industrial', 'Campinas', 'SP', '13080-000'],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);

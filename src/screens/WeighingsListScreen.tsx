@@ -138,8 +138,9 @@ export function WeighingsListScreen() {
                     {item.waste_type?.name ?? 'Resíduo'}
                   </Text>
                   <View style={styles.badgesRow}>
-                    {isCanceled && <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />}
-                    <StatusBadge status={item.approval_status} />
+                    {isCanceled
+                      ? <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />
+                      : <StatusBadge status={item.approval_status} />}
                   </View>
                 </View>
                 <View style={styles.cardRow}>

@@ -49,7 +49,7 @@ export function DashboardScreen() {
     if (!stats) return;
     setExporting(true);
     try {
-      const weighings = await listWeighings({ startDate: range.startDate, endDate: range.endDate });
+      const weighings = await listWeighings({ startDate: range.startDate, endDate: range.endDate, excludeCanceled: true });
       const ctx = { periodLabel: range.label, stats, weighings };
       if (type === 'xlsx') await generateXlsxReport(ctx);
       else if (type === 'pdf') await generatePdfReport(ctx);
@@ -135,7 +135,9 @@ export function DashboardScreen() {
                   <View style={[styles.fill, { width: `${Math.min(100, stats!.lostDiversion.rate)}%`, backgroundColor: lostDiversionColor }]} />
                 </View>
                 <Text style={styles.diversionHint}>
-                  {formatWeight(stats!.lostDiversion.lostWeight)} de {formatWeight(stats!.lostDiversion.divertibleWeight)} enviados ao aterro poderiam ter sido desviados.
+                  {stats!.lostDiversion.lostWeight > 0
+                    ? `${formatWeight(stats!.lostDiversion.lostWeight)} de ${formatWeight(stats!.lostDiversion.divertibleWeight)} enviados ao aterro poderiam ter sido desviados.`
+                    : `Nenhum resíduo dos ${formatWeight(stats!.lostDiversion.divertibleWeight)} enviados ao aterro foi marcado como desviável.`}
                 </Text>
               </Card>
             )}

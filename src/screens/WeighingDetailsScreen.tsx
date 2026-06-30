@@ -133,8 +133,9 @@ export function WeighingDetailsScreen() {
           <View style={styles.headRow}>
             <Text style={styles.waste}>{weighing.waste_type?.name}</Text>
             <View style={styles.badgesRow}>
-              {isCanceled && <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />}
-              <StatusBadge status={weighing.approval_status} large />
+              {isCanceled
+                ? <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />
+                : <StatusBadge status={weighing.approval_status} large />}
             </View>
           </View>
 

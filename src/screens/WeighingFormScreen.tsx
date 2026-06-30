@@ -46,6 +46,12 @@ export function WeighingFormScreen() {
   const { profile } = useAuth();
   const { canEditWeighing } = usePermissions();
 
+  // Ref para a função de permissão — evita que o useCallback recrie load() a cada render.
+  // Sem isso, qualquer digitação no formulário recriava load() e disparava o useEffect,
+  // resetando todos os campos enquanto o usuário editava.
+  const canEditRef = useRef(canEditWeighing);
+  canEditRef.current = canEditWeighing;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -72,13 +78,16 @@ export function WeighingFormScreen() {
   const [photo, setPhoto] = useState<SelectedPhoto | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Campos de localização manual (usados quando a imagem é anexada)
+  // Campos de localização manual
   const [manualLocation, setManualLocation] = useState('');
   const [mStreet, setMStreet] = useState('');
   const [mNeighborhood, setMNeighborhood] = useState('');
   const [mPostal, setMPostal] = useState('');
   const [mCity, setMCity] = useState('');
   const [mState, setMState] = useState('');
+
+  // Checkbox "Usar endereço da unidade?" — aparece após anexar imagem
+  const [useUnitAddress, setUseUnitAddress] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +107,8 @@ export function WeighingFormScreen() {
       if (isEdit && editId) {
         const existing = await getWeighing(editId);
         if (existing) {
-          if (!canEditWeighing(existing)) {
+          // Usa o ref para não adicionar canEditWeighing como dep e recriar load() a cada render
+          if (!canEditRef.current(existing)) {
             Alert.alert('Sem permissão', 'Você não pode editar esta pesagem.');
             navigation.goBack();
             return;
@@ -127,7 +137,7 @@ export function WeighingFormScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isEdit, editId, canEditWeighing, navigation]);
+  }, [isEdit, editId, navigation]); // canEditWeighing removido dos deps — usa ref acima
 
   useEffect(() => {
     load();
@@ -142,42 +152,38 @@ export function WeighingFormScreen() {
     [units, clientId]
   );
 
-  // Destinatário atualmente selecionado (para verificar is_landfill).
   const selectedRecipient = useMemo(
     () => recipients.find((r) => r.id === recipientId) ?? null,
-    [recipients, recipientId],
+    [recipients, recipientId]
   );
 
-  // Rastreia se o endereço foi preenchido por auto-fill (vs. dado salvo ou digitação manual).
-  // - false: endereço veio do banco ou do usuário → não sobrescrever ao trocar unidade.
-  // - true:  endereço veio de auto-fill → pode atualizar se o usuário trocar a unidade.
-  const addressAutoFilledRef = useRef(false);
+  const selectedUnit = useMemo(
+    () => units.find((u) => u.id === unitId) ?? null,
+    [units, unitId]
+  );
 
-  // Pré-preenche cidade e rua a partir da unidade selecionada.
-  // Funciona para pesagens novas E para edição (pesagens importadas chegam com endereço vazio).
-  // Usa functional setState para ler o valor atual sem adicionar mCity/mStreet como deps.
-  useEffect(() => {
-    if (!unitId || units.length === 0) return;
-    const unit = units.find((u) => u.id === unitId);
-    if (!unit) return;
-    setMCity((cur) => {
-      if (!cur || addressAutoFilledRef.current) {
-        if (unit.city) addressAutoFilledRef.current = true;
-        return unit.city ?? cur;
+  const handleUseUnitAddress = (val: boolean) => {
+    setUseUnitAddress(val);
+    if (val && selectedUnit) {
+      const hasAddr =
+        selectedUnit.street || selectedUnit.neighborhood || selectedUnit.city ||
+        selectedUnit.state || selectedUnit.postal_code || selectedUnit.address;
+      if (!hasAddr) {
+        Alert.alert('Sem endereço', 'Esta unidade não possui endereço cadastrado.');
+        setUseUnitAddress(false);
+        return;
       }
-      return cur;
-    });
-    setMStreet((cur) => {
-      if (!cur || addressAutoFilledRef.current) {
-        return unit.address ?? cur;
-      }
-      return cur;
-    });
-  }, [unitId, units]);
+      setMStreet(selectedUnit.street ?? selectedUnit.address ?? '');
+      setMNeighborhood(selectedUnit.neighborhood ?? '');
+      setMCity(selectedUnit.city ?? '');
+      setMState(selectedUnit.state ?? '');
+      setMPostal(selectedUnit.postal_code ?? '');
+    }
+  };
 
-  // Ao tirar foto na câmera, preenche data/hora e localização automaticamente.
   const onPhotoChange = (p: SelectedPhoto | null) => {
     setPhoto(p);
+    setUseUnitAddress(false); // reseta checkbox ao trocar foto
     if (p?.imageSource === 'camera' && p.capturedAt) {
       setDateStr(dayjs(p.capturedAt).format('DD/MM/YYYY'));
       setTimeStr(dayjs(p.capturedAt).format('HH:mm'));
@@ -208,7 +214,6 @@ export function WeighingFormScreen() {
     try {
       const weighingDate = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm').toISOString();
 
-      // Localização manual (preenchida no anexo de imagem)
       const manualDetails: LocationDetails = {
         street: mStreet || null,
         neighborhood: mNeighborhood || null,
@@ -218,7 +223,6 @@ export function WeighingFormScreen() {
       };
       manualDetails.formattedAddress = formatAddress(manualDetails);
 
-      // Câmera → usa o reverse geocode; anexo → usa o preenchimento manual.
       const isCamera = photo?.imageSource === 'camera';
       const locationColumns = isCamera
         ? locationToColumns(photo?.location)
@@ -234,7 +238,6 @@ export function WeighingFormScreen() {
         weight_kg: parseFloat(weight.replace(',', '.')),
         notes: notes || null,
         people_count: peopleCount ? parseInt(peopleCount, 10) : null,
-        // Só salvo quando o destinatário for aterro; caso contrário null (não se aplica).
         could_divert_from_landfill: selectedRecipient?.is_landfill ? couldDivert : null,
         gps_lat: isCamera ? photo?.location?.latitude ?? null : null,
         gps_lng: isCamera ? photo?.location?.longitude ?? null : null,
@@ -252,7 +255,6 @@ export function WeighingFormScreen() {
         weighingId = created.id;
       }
 
-      // Upload da foto (apenas se uma nova foi escolhida)
       if (photo && weighingId) {
         const path = await uploadWeighingPhoto(weighingId, photo.uri);
         await insertPhotoRecord(weighingId, path, {
@@ -290,7 +292,7 @@ export function WeighingFormScreen() {
               value={clientId}
               onChange={(v) => {
                 setClientId(v);
-                setUnitId(''); // reseta unidade ao trocar cliente
+                setUnitId('');
               }}
               error={errors.clientId}
             />
@@ -361,7 +363,27 @@ export function WeighingFormScreen() {
             <Text style={styles.sectionTitle}>Foto da pesagem</Text>
             <PhotoPicker value={photo} onChange={onPhotoChange} />
 
-            {/* Campos opcionais aparecem apenas quando a imagem é anexada (upload) */}
+            {/* Checkbox para usar endereço da unidade (aparece quando há foto E unidade selecionada) */}
+            {photo !== null && unitId ? (
+              <View style={styles.unitAddressRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
+                  {selectedUnit && !selectedUnit.street && !selectedUnit.neighborhood && !selectedUnit.city && !selectedUnit.address && (
+                    <Text style={[styles.switchHint, { color: colors.warning }]}>
+                      Esta unidade não possui endereço cadastrado.
+                    </Text>
+                  )}
+                </View>
+                <Switch
+                  value={useUnitAddress}
+                  onValueChange={handleUseUnitAddress}
+                  trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                  thumbColor={useUnitAddress ? colors.green : colors.gray}
+                />
+              </View>
+            ) : null}
+
+            {/* Campos manuais para upload */}
             {photo?.imageSource === 'upload' && (
               <View style={styles.uploadFields}>
                 <Text style={styles.uploadHint}>
@@ -373,11 +395,11 @@ export function WeighingFormScreen() {
                   value={manualLocation}
                   onChangeText={setManualLocation}
                 />
-                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores" value={mStreet} onChangeText={(v) => { addressAutoFilledRef.current = false; setMStreet(v); }} />
+                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores, 100" value={mStreet} onChangeText={setMStreet} />
                 <Input label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={(v) => { addressAutoFilledRef.current = false; setMCity(v); }} />
+                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={setMCity} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Input label="Estado" placeholder="UF" value={mState} onChangeText={setMState} autoCapitalize="characters" />
@@ -439,7 +461,6 @@ export function WeighingFormScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.greenBg },
-  scroll: { padding: spacing.lg },
   row: { flexDirection: 'row', gap: spacing.md },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   uploadFields: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
@@ -456,6 +477,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     gap: spacing.md,
+  },
+  unitAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.greenBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.grayMedium,
   },
   switchLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
   switchHint: { color: colors.grayText, fontSize: 12, marginTop: 2, lineHeight: 16 },
