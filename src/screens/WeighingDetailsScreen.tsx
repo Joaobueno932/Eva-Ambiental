@@ -1,14 +1,17 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, ConfirmModal, Header, Loading, StatusBadge } from '@/components';
+import { Button, Card, ConfirmModal, Header, Loading, StatusBadge, Tag } from '@/components';
+import { weighingEvents } from '@/utils/operations';
+import { Timeline, SectionHeading } from '@/components/Operations';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { approveWeighing, getWeighing, rejectWeighing } from '@/services/weighings';
-import { listWeighingPhotos } from '@/services/photos';
+import { approveWeighing, cancelWeighing, getWeighing, rejectWeighing } from '@/services/weighings';
+import { downloadWeighingPhotos, listWeighingPhotos } from '@/services/photos';
 import { Weighing, WeighingPhoto } from '@/types';
 import { WeighingsStackParamList } from '@/navigation/types';
 import { formatDate, formatDateTime, formatTime, formatWeight } from '@/utils/format';
@@ -16,21 +19,39 @@ import { formatDate, formatDateTime, formatTime, formatWeight } from '@/utils/fo
 type Nav = NativeStackNavigationProp<WeighingsStackParamList, 'WeighingDetails'>;
 type Rt = RouteProp<WeighingsStackParamList, 'WeighingDetails'>;
 
-export function WeighingDetailsScreen() {
+interface ViewProps {
+  id: string;
+  /** Fecha o detalhe: volta na pilha (tela) ou fecha o modal (site). */
+  onClose: () => void;
+  /** true quando o conteúdo está dentro de um modal, e não ocupando a tela. */
+  embedded?: boolean;
+}
+
+/**
+ * Conteúdo do detalhe de uma pesagem.
+ *
+ * Vive separado da tela porque no site ele também é aberto em modal, a partir
+ * do cartão na listagem — lá trocar de página para ler um registro e voltar
+ * perde o lugar na lista e os filtros aplicados.
+ */
+export function WeighingDetailsView({ id, onClose, embedded }: ViewProps) {
   const navigation = useNavigation<Nav>();
-  const route = useRoute<Rt>();
-  const { id } = route.params;
   const { profile } = useAuth();
-  const { isAdmin, canEditWeighing } = usePermissions();
+  const { canApprove, canCancelWeighing, canEditWeighing } = usePermissions();
 
   const [weighing, setWeighing] = useState<Weighing | null>(null);
   const [photos, setPhotos] = useState<WeighingPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState<string | null>(null);
+
   const [showReject, setShowReject] = useState(false);
   const [showApprove, setShowApprove] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+
   const [reason, setReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [acting, setActing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -38,7 +59,7 @@ export function WeighingDetailsScreen() {
       setWeighing(w);
       setPhotos(ph);
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao carregar pesagem.');
+      showAlert('Erro', e?.message ?? 'Falha ao carregar pesagem.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +79,7 @@ export function WeighingDetailsScreen() {
       setShowApprove(false);
       await load();
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao aprovar.');
+      showAlert('Erro', e?.message ?? 'Falha ao aprovar.');
     } finally {
       setActing(false);
     }
@@ -67,7 +88,7 @@ export function WeighingDetailsScreen() {
   const onReject = async () => {
     if (!profile) return;
     if (!reason.trim()) {
-      Alert.alert('Motivo obrigatório', 'Informe o motivo da rejeição.');
+      showAlert('Motivo obrigatório', 'Informe o motivo da rejeição.');
       return;
     }
     setActing(true);
@@ -77,7 +98,47 @@ export function WeighingDetailsScreen() {
       setReason('');
       await load();
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao rejeitar.');
+      showAlert('Erro', e?.message ?? 'Falha ao rejeitar.');
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const onDownloadPhotos = async () => {
+    if (downloading) return;
+    if (photos.length === 0) {
+      showAlert('Sem fotos', 'Esta pesagem não possui fotos para baixar.');
+      return;
+    }
+    setDownloading(true);
+    try {
+      const result = await downloadWeighingPhotos(id);
+      if (result === 'empty') {
+        showAlert('Sem fotos', 'Esta pesagem não possui fotos para baixar.');
+      } else if (result === 'unavailable') {
+        showAlert('Indisponível', 'O compartilhamento de arquivos não está disponível neste dispositivo.');
+      }
+    } catch (e: any) {
+      showAlert('Erro ao baixar fotos', e?.message ?? 'Verifique sua conexão e tente novamente.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const onCancel = async () => {
+    if (!profile) return;
+    if (!cancelReason.trim()) {
+      showAlert('Motivo obrigatório', 'Informe o motivo do cancelamento.');
+      return;
+    }
+    setActing(true);
+    try {
+      await cancelWeighing(id, profile.id, cancelReason.trim());
+      setShowCancel(false);
+      setCancelReason('');
+      await load();
+    } catch (e: any) {
+      showAlert('Erro', e?.message ?? 'Falha ao cancelar pesagem.');
     } finally {
       setActing(false);
     }
@@ -86,8 +147,8 @@ export function WeighingDetailsScreen() {
   if (loading) return <Loading message="Carregando detalhes..." />;
   if (!weighing) {
     return (
-      <View style={styles.container}>
-        <Header title="Pesagem" onBack={() => navigation.goBack()} />
+      <View style={embedded ? styles.embedded : styles.container}>
+        <DetailHeader embedded={embedded} onClose={onClose} />
         <Text style={styles.notFound}>Pesagem não encontrada.</Text>
       </View>
     );
@@ -95,15 +156,27 @@ export function WeighingDetailsScreen() {
 
   const canEdit = canEditWeighing(weighing);
   const isPending = weighing.approval_status === 'pending';
+  const isCanceled = !!weighing.canceled_at;
+
+  const showActionsCard =
+    (canEdit && !isCanceled) ||
+    (canApprove && isPending && !isCanceled) ||
+    (canCancelWeighing && !isCanceled);
 
   return (
-    <View style={styles.container}>
-      <Header title="Detalhes da Pesagem" onBack={() => navigation.goBack()} />
+    <View style={embedded ? styles.embedded : styles.container}>
+      <DetailHeader embedded={embedded} onClose={onClose} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Card>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12 }}>REGISTRO #{weighing.id.slice(0, 8).toUpperCase()}</Text>
+          <Text style={[styles.weightValue, { marginBottom: 16 }]}>{formatWeight(weighing.weight_kg)}</Text>
           <View style={styles.headRow}>
             <Text style={styles.waste}>{weighing.waste_type?.name}</Text>
-            <StatusBadge status={weighing.approval_status} large />
+            <View style={styles.badgesRow}>
+              {isCanceled
+                ? <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />
+                : <StatusBadge status={weighing.approval_status} large />}
+            </View>
           </View>
 
           <Info icon="business-outline" label="Cliente" value={weighing.client?.name} />
@@ -115,6 +188,25 @@ export function WeighingDetailsScreen() {
           <Info icon="navigate-outline" label="Destinatário" value={weighing.recipient?.name ?? 'Não informado'} />
           {weighing.notes ? <Info icon="document-text-outline" label="Observações" value={weighing.notes} /> : null}
         </Card>
+
+        <Card>
+          <SectionHeading title="Rastreabilidade" description="Eventos disponíveis neste registro." />
+          <Timeline events={weighingEvents(weighing).map(event => ({ ...event, date: formatDateTime(event.date) }))} />
+        </Card>
+        {/* Cancelamento */}
+        {isCanceled && (
+          <Card>
+            <Text style={styles.sectionTitle}>Cancelamento</Text>
+            <View style={styles.cancelBox}>
+              <Info icon="person-remove-outline" label="Cancelada por" value={weighing.canceler?.full_name ?? '-'} />
+              <Info icon="calendar-outline" label="Data do cancelamento" value={formatDateTime(weighing.canceled_at!)} />
+              <View style={styles.cancelReasonBox}>
+                <Text style={styles.cancelReasonTitle}>Motivo do cancelamento</Text>
+                <Text style={styles.cancelReasonText}>{weighing.cancellation_reason ?? '-'}</Text>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* Localização */}
         <Card>
@@ -179,15 +271,32 @@ export function WeighingDetailsScreen() {
         <Card>
           <Text style={styles.sectionTitle}>Status de Aprovação</Text>
           <Info icon="ribbon-outline" label="Status" value={undefined}>
-            <StatusBadge status={weighing.approval_status} />
+            {isCanceled
+              ? <Tag label="Cancelada" color="#991B1B" bg="#FEE2E2" />
+              : <StatusBadge status={weighing.approval_status} />}
           </Info>
-          <Info icon="person-circle-outline" label="Aprovado/avaliado por" value={weighing.approver?.full_name ?? '-'} />
-          <Info icon="calendar-outline" label="Data da avaliação" value={weighing.approved_at ? formatDateTime(weighing.approved_at) : '-'} />
-          {weighing.approval_status === 'rejected' && (
-            <View style={styles.rejection}>
-              <Text style={styles.rejectionTitle}>Motivo da rejeição</Text>
-              <Text style={styles.rejectionText}>{weighing.rejection_reason ?? '-'}</Text>
-            </View>
+          {isCanceled ? (
+            <>
+              <Info icon="person-remove-outline" label="Cancelada por" value={weighing.canceler?.full_name ?? '-'} />
+              <Info icon="calendar-outline" label="Data do cancelamento" value={formatDateTime(weighing.canceled_at!)} />
+              {weighing.cancellation_reason ? (
+                <View style={styles.cancelReasonBox}>
+                  <Text style={styles.cancelReasonTitle}>Motivo do cancelamento</Text>
+                  <Text style={styles.cancelReasonText}>{weighing.cancellation_reason}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Info icon="person-circle-outline" label="Aprovado/avaliado por" value={weighing.approver?.full_name ?? '-'} />
+              <Info icon="calendar-outline" label="Data da avaliação" value={weighing.approved_at ? formatDateTime(weighing.approved_at) : '-'} />
+              {weighing.approval_status === 'rejected' && (
+                <View style={styles.rejection}>
+                  <Text style={styles.rejectionTitle}>Motivo da rejeição</Text>
+                  <Text style={styles.rejectionText}>{weighing.rejection_reason ?? '-'}</Text>
+                </View>
+              )}
+            </>
           )}
         </Card>
 
@@ -197,39 +306,62 @@ export function WeighingDetailsScreen() {
           {photos.length === 0 ? (
             <Text style={styles.noPhotos}>Nenhuma foto anexada.</Text>
           ) : (
-            <View style={styles.thumbs}>
-              {photos.map((p) =>
-                p.public_url ? (
-                  <Pressable key={p.id} onPress={() => setZoom(p.public_url!)}>
-                    <Image source={{ uri: p.public_url }} style={styles.thumb} />
-                    <View style={styles.thumbBadge}>
-                      <Ionicons name={p.image_source === 'camera' ? 'camera' : 'image'} size={12} color={colors.white} />
-                    </View>
-                  </Pressable>
-                ) : null
-              )}
-            </View>
+            <>
+              <View style={styles.thumbs}>
+                {photos.map((p) =>
+                  p.public_url ? (
+                    <Pressable key={p.id} onPress={() => setZoom(p.public_url!)}>
+                      <Image source={{ uri: p.public_url }} style={styles.thumb} />
+                      <View style={styles.thumbBadge}>
+                        <Ionicons name={p.image_source === 'camera' ? 'camera' : 'image'} size={12} color={colors.white} />
+                      </View>
+                    </Pressable>
+                  ) : null
+                )}
+              </View>
+              <Button
+                title={photos.length > 1 ? `Baixar fotos (${photos.length})` : 'Baixar foto'}
+                icon="download-outline"
+                variant="outline"
+                loading={downloading}
+                onPress={onDownloadPhotos}
+                style={{ marginTop: spacing.md }}
+              />
+            </>
           )}
         </Card>
 
         {/* Ações */}
-        {(canEdit || (isAdmin && isPending)) && (
+        {showActionsCard && (
           <Card>
-            <Text style={styles.sectionTitle}>Ações</Text>
-            {canEdit && (
+            <Text style={styles.sectionTitle}>Decisão e controle do registro</Text>
+            {canEdit && !isCanceled && (
               <Button
                 title="Editar pesagem"
                 icon="create-outline"
                 variant="outline"
-                onPress={() => navigation.navigate('WeighingForm', { id: weighing.id })}
+                onPress={() => {
+                  // No modal, sair para o formulário sem fechar deixaria o
+                  // detalhe sobreposto ao que o usuário vai editar.
+                  if (embedded) onClose();
+                  navigation.navigate('WeighingForm', { id: weighing.id });
+                }}
                 style={{ marginBottom: spacing.md }}
               />
             )}
-            {isAdmin && isPending && (
+            {canApprove && isPending && !isCanceled && (
               <>
                 <Button title="Aprovar pesagem" icon="checkmark-circle" onPress={() => setShowApprove(true)} style={{ marginBottom: spacing.md }} />
-                <Button title="Rejeitar pesagem" icon="close-circle" variant="danger" onPress={() => setShowReject(true)} />
+                <Button title="Rejeitar pesagem" icon="close-circle" variant="danger" onPress={() => setShowReject(true)} style={{ marginBottom: spacing.md }} />
               </>
+            )}
+            {canCancelWeighing && !isCanceled && (
+              <Button
+                title="Cancelar pesagem"
+                icon="ban-outline"
+                variant="danger"
+                onPress={() => setShowCancel(true)}
+              />
             )}
           </Card>
         )}
@@ -273,8 +405,55 @@ export function WeighingDetailsScreen() {
           setReason('');
         }}
       />
+      <ConfirmModal
+        visible={showCancel}
+        title="Cancelar pesagem"
+        message="Informe o motivo do cancelamento. Essa ação ficará registrada para auditoria."
+        confirmLabel="Confirmar cancelamento"
+        cancelLabel="Cancelar ação"
+        destructive
+        loading={acting}
+        withInput
+        inputValue={cancelReason}
+        inputPlaceholder="Motivo do cancelamento"
+        onChangeInput={setCancelReason}
+        onConfirm={onCancel}
+        onCancel={() => {
+          setShowCancel(false);
+          setCancelReason('');
+        }}
+      />
     </View>
   );
+}
+
+/**
+ * Cabeçalho do detalhe: o da tela (com voltar) ou o do modal (com fechar).
+ */
+function DetailHeader({ embedded, onClose }: { embedded?: boolean; onClose: () => void }) {
+  if (!embedded) {
+    return <Header title="Ficha de rastreabilidade" onBack={onClose} />;
+  }
+  return (
+    <View style={styles.modalHeader}>
+      <Text style={styles.modalTitle}>Ficha de rastreabilidade</Text>
+      <Pressable
+        onPress={onClose}
+        accessibilityLabel="Fechar"
+        accessibilityRole="button"
+        style={({ hovered }: any) => [styles.modalClose, hovered && { backgroundColor: colors.surfaceAlt }]}
+      >
+        <Ionicons name="close" size={20} color={colors.textMuted} />
+      </Pressable>
+    </View>
+  );
+}
+
+/** Tela de rota: o mesmo conteúdo, ocupando a página. */
+export function WeighingDetailsScreen() {
+  const navigation = useNavigation<Nav>();
+  const route = useRoute<Rt>();
+  return <WeighingDetailsView id={route.params.id} onClose={() => navigation.goBack()} />;
 }
 
 function Info({
@@ -300,29 +479,78 @@ function Info({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
+  container: { flex: 1, backgroundColor: colors.pageBg },
+  // Dentro do modal o conteúdo não ocupa a tela: a altura é limitada pelo
+  // próprio modal, e o fundo é a superfície do diálogo.
+  embedded: { flex: 1, minHeight: 0, backgroundColor: colors.pageBg },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingLeft: spacing.xl,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
+  modalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: { padding: spacing.lg },
-  notFound: { textAlign: 'center', marginTop: spacing.xxl, color: colors.grayText },
-  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  waste: { fontSize: 22, fontWeight: '800', color: colors.text, flex: 1, marginRight: spacing.sm },
-  info: { flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.gray },
-  infoLabel: { fontSize: 12, color: colors.grayText },
-  infoValue: { fontSize: 15, color: colors.text, fontWeight: '600', marginTop: 1 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  locHint: { color: colors.grayText, fontSize: 12, fontStyle: 'italic', marginTop: spacing.sm },
-  weightBox: { backgroundColor: colors.greenBg, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center', marginBottom: spacing.md },
-  weightLabel: { color: colors.greenDark, fontSize: 13, fontWeight: '600' },
-  weightValue: { color: colors.greenDark, fontSize: 32, fontWeight: '800', marginTop: 4 },
-  measureRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.gray },
-  measureLabel: { color: colors.grayText },
-  measureValue: { color: colors.text, fontWeight: '600' },
-  rejection: { backgroundColor: '#FEE2E2', borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm },
-  rejectionTitle: { color: '#991B1B', fontWeight: '700', marginBottom: 4 },
-  rejectionText: { color: '#991B1B' },
-  noPhotos: { color: colors.grayText, fontStyle: 'italic' },
+  notFound: { textAlign: 'center', marginTop: spacing.xxl, color: colors.textMuted },
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md, gap: spacing.sm },
+  badgesRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 1 },
+  waste: { fontSize: 21, fontWeight: '700', color: colors.text, flex: 1, letterSpacing: -0.5 },
+  info: { flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.sm + 2, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  infoLabel: { fontSize: 11.5, color: colors.textMuted, fontWeight: '600' },
+  infoValue: { fontSize: 14.5, color: colors.text, fontWeight: '600', marginTop: 2 },
+  sectionTitle: { fontSize: 15.5, fontWeight: '700', color: colors.text, marginBottom: spacing.md, letterSpacing: -0.2 },
+  locHint: { color: colors.textSoft, fontSize: 12, fontStyle: 'italic', marginTop: spacing.sm },
+  // A massa é o número que se procura primeiro na ficha: fica num bloco
+  // próprio, com traço da marca, e não numa linha igual às outras.
+  weightBox: {
+    backgroundColor: colors.brand[50],
+    borderWidth: 1,
+    borderColor: colors.greenLine,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  weightLabel: {
+    color: colors.brand[600], fontSize: 11, fontWeight: '700',
+    letterSpacing: 0.8, textTransform: 'uppercase',
+  },
+  weightValue: { color: colors.brand[700], fontSize: 34, fontWeight: '700', marginTop: 6, letterSpacing: -1.2 },
+  measureRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm + 2, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  measureLabel: { color: colors.textMuted, fontSize: 13.5 },
+  measureValue: { color: colors.text, fontWeight: '600', fontSize: 13.5 },
+  rejection: {
+    backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder,
+    borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm,
+  },
+  rejectionTitle: { color: colors.danger, fontWeight: '700', marginBottom: 4, fontSize: 13 },
+  rejectionText: { color: colors.danger, fontSize: 13.5, lineHeight: 19 },
+  cancelBox: { borderRadius: radius.md, overflow: 'hidden' },
+  cancelReasonBox: {
+    backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder,
+    borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm,
+  },
+  cancelReasonTitle: { color: colors.danger, fontWeight: '700', marginBottom: 4, fontSize: 13 },
+  cancelReasonText: { color: colors.danger, fontSize: 13.5, lineHeight: 19 },
+  noPhotos: { color: colors.textSoft, fontStyle: 'italic', fontSize: 13 },
   thumbs: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  thumb: { width: 96, height: 96, borderRadius: radius.md, backgroundColor: colors.gray },
-  thumbBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 10, padding: 3 },
+  thumb: {
+    width: 96, height: 96, borderRadius: radius.md,
+    backgroundColor: colors.surfaceSunken, borderWidth: 1, borderColor: colors.border,
+  },
+  thumbBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(10,31,25,0.6)', borderRadius: radius.full, padding: 4 },
   zoomBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' },
   zoomImage: { width: '100%', height: '80%' },
   zoomClose: { position: 'absolute', top: 50, right: 24 },

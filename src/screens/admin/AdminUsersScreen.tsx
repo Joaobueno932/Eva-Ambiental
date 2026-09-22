@@ -1,9 +1,13 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, EmptyState, Header, Input, Loading, Select } from '@/components';
-import { colors, radius, spacing } from '@/theme';
+import { DataTable } from '@/components/DataTable';
+import { Tag } from '@/components/StatusBadge';
+import { colors, elevation, layout, radius, spacing } from '@/theme';
+import { useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { createUser, listUsers, updateUser } from '@/services/users';
 import { Profile, Role } from '@/types';
@@ -12,15 +16,18 @@ import { roleLabel } from '@/utils/format';
 const roleOptions = [
   { label: 'Administrador', value: 'admin' },
   { label: 'Analista', value: 'analyst' },
+  { label: 'Operador', value: 'operator' },
   { label: 'Visualizador', value: 'viewer' },
 ];
 
 export function AdminUsersScreen() {
   const navigation = useNavigation();
   const { profile: me } = useAuth();
+  const [search, setSearch] = useState('');
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
+  const isDesktop = useIsDesktop();
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Profile | null>(null);
 
@@ -36,7 +43,7 @@ export function AdminUsersScreen() {
     try {
       setUsers(await listUsers());
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao carregar usuários.');
+      showAlert('Erro', e?.message ?? 'Falha ao carregar usuários.');
     } finally {
       setLoading(false);
     }
@@ -92,9 +99,9 @@ export function AdminUsersScreen() {
       }
       setModal(false);
       await fetch();
-      if (!editing) Alert.alert('Sucesso', 'Usuário criado com segurança.');
+      if (!editing) showAlert('Sucesso', 'Usuário criado com segurança.');
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao salvar usuário.');
+      showAlert('Erro', e?.message ?? 'Falha ao salvar usuário.');
     } finally {
       setSaving(false);
     }
@@ -102,16 +109,36 @@ export function AdminUsersScreen() {
 
   return (
     <View style={styles.container}>
-      <Header title="Usuários" subtitle="Gestão de acessos" onBack={() => navigation.goBack()} />
+      <Header
+        title="Usuários"
+        subtitle="Gestão de acessos"
+        onBack={() => navigation.goBack()}
+        right={
+          isDesktop ? (
+            <Button title="Novo usuário" icon="person-add" fullWidth={false} onPress={openNew} />
+          ) : undefined
+        }
+      />
 
+      <View style={{ padding: spacing.lg, paddingBottom: 0 }}><Input label="Buscar usuários" placeholder="Nome, e-mail ou perfil" value={search} onChangeText={setSearch} /></View>
       {loading ? (
         <Loading />
+      ) : isDesktop ? (
+        <ScrollView contentContainerStyle={styles.list}>
+          <DataTable items={users.filter(u => [u.full_name, u.email, roleLabel[u.role]].join(' ').toLocaleLowerCase().includes(search.toLocaleLowerCase()))} keyExtractor={u => u.id} empty={<EmptyState title="Nenhum usuário encontrado" message="Ajuste a busca ou cadastre um usuário." />} columns={[
+            { key: 'name', label: 'USUÁRIO', flex: 2, render: u => <Text style={styles.name}>{u.full_name}{u.id === me?.id ? ' (você)' : ''}</Text> },
+            { key: 'email', label: 'E-MAIL', flex: 2, render: u => <Text style={styles.email}>{u.email}</Text> },
+            { key: 'role', label: 'PERFIL', render: u => <Text style={styles.role}>{roleLabel[u.role]}</Text> },
+            { key: 'status', label: 'SITUAÇÃO', render: u => <Tag label={u.active ? 'Ativo' : 'Inativo'} color={u.active ? colors.success : colors.textMuted} /> },
+            { key: 'actions', label: 'ACESSO', render: u => <Button title="Editar" variant="outline" onPress={() => openEdit(u)} /> },
+          ]} />
+        </ScrollView>
       ) : (
         <FlatList
-          data={users}
+          data={users.filter(u => [u.full_name, u.email, roleLabel[u.role]].join(' ').toLocaleLowerCase().includes(search.toLocaleLowerCase()))}
           keyExtractor={(u) => u.id}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<EmptyState icon="people-outline" title="Nenhum usuário" message="Toque em + para criar." />}
+          ListEmptyComponent={<EmptyState icon="people-outline" title="Nenhum usuário" message={isDesktop ? 'Use o botão "Novo usuário" para criar.' : 'Toque em + para criar.'} />}
           renderItem={({ item }) => (
             <Card onPress={() => openEdit(item)}>
               <View style={styles.row}>
@@ -134,13 +161,24 @@ export function AdminUsersScreen() {
         />
       )}
 
-      <Pressable style={styles.fab} onPress={openNew} accessibilityLabel="Novo usuário">
-        <Ionicons name="person-add" size={26} color={colors.white} />
-      </Pressable>
+      {/* No site a ação vive no cabeçalho, junto do título. */}
+      {!isDesktop && (
+        <Pressable style={styles.fab} onPress={openNew} accessibilityLabel="Novo usuário">
+          <Ionicons name="person-add" size={26} color={colors.white} />
+        </Pressable>
+      )}
 
-      <Modal visible={modal} transparent animationType="slide" onRequestClose={() => setModal(false)}>
-        <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.sheet}>
+      <Modal
+        visible={modal}
+        transparent
+        animationType={isDesktop ? 'fade' : 'slide'}
+        onRequestClose={() => setModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={isDesktop ? webStyles.backdrop : styles.backdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={isDesktop ? webStyles.dialog : styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{editing ? 'Editar usuário' : 'Novo usuário'}</Text>
               <Pressable onPress={() => setModal(false)} hitSlop={10}>
@@ -192,25 +230,67 @@ export function AdminUsersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
-  list: { padding: spacing.lg, paddingBottom: 120 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.white, fontSize: 20, fontWeight: '800' },
-  name: { fontSize: 16, fontWeight: '700', color: colors.text },
-  email: { color: colors.grayText, fontSize: 13 },
-  role: { color: colors.greenDark, fontSize: 12, fontWeight: '600', marginTop: 1 },
-  badge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 12, fontWeight: '700' },
-  fab: {
-    position: 'absolute', right: spacing.lg, bottom: spacing.xl, width: 60, height: 60, borderRadius: 30,
-    backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center', elevation: 6,
-    shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+  container: { flex: 1, backgroundColor: colors.pageBg },
+  list: {
+    padding: spacing.lg,
+    paddingBottom: 120,
+    width: '100%',
+    maxWidth: layout.content,
+    alignSelf: 'center',
   },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.greenBg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, maxHeight: '88%' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  avatar: {
+    width: 42, height: 42, borderRadius: radius.full,
+    backgroundColor: colors.brand[50], borderWidth: 1, borderColor: colors.greenLine,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { color: colors.brand[700], fontSize: 17, fontWeight: '700' },
+  name: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
+  email: { color: colors.textMuted, fontSize: 12.5, marginTop: 1 },
+  role: { color: colors.brand[600], fontSize: 11.5, fontWeight: '700', marginTop: 3, letterSpacing: 0.2 },
+  badge: { borderRadius: radius.full, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: 'transparent' },
+  badgeText: { fontSize: 11.5, fontWeight: '700' },
+  fab: {
+    position: 'absolute', right: spacing.lg, bottom: spacing.xl, width: 56, height: 56,
+    borderRadius: radius.full, backgroundColor: colors.brand[700],
+    alignItems: 'center', justifyContent: 'center',
+    ...elevation('lg'),
+  },
+  backdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    padding: spacing.lg,
+    maxHeight: '88%',
+  },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.white, borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.md },
-  switchLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
+  sheetTitle: { fontSize: 17, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+  switchRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderSoft,
+    borderRadius: radius.md, padding: spacing.md + 2, marginBottom: spacing.md,
+  },
+  switchLabel: { fontSize: 14.5, fontWeight: '600', color: colors.text },
+});
+
+const webStyles = StyleSheet.create({
+  // Com mouse, a folha que sobe do rodapé não faz sentido: o formulário
+  // nasce no centro da tela, como qualquer diálogo de sistema.
+  backdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  dialog: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '88%',
+    ...elevation('xl'),
+  },
 });

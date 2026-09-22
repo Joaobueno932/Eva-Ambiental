@@ -8,6 +8,7 @@ const fields: FieldConfig[] = [
   { key: 'document', label: 'Documento (CNPJ/CPF)', type: 'text', placeholder: '00.000.000/0001-00' },
   { key: 'email', label: 'E-mail', type: 'text', placeholder: 'contato@destinatario.com', keyboardType: 'email-address' },
   { key: 'phone', label: 'Telefone', type: 'text', placeholder: '(00) 00000-0000', keyboardType: 'phone-pad' },
+  { key: 'is_landfill', label: 'Este destinatário é aterro?', type: 'switch', default: false },
 ];
 
 export function AdminRecipientsScreen() {
@@ -19,7 +20,9 @@ export function AdminRecipientsScreen() {
       load={() => listRecipients(false)}
       upsert={upsertRecipient}
       renderTitle={(r) => r.name}
-      renderSubtitle={(r) => r.document ?? r.email ?? ''}
+      renderSubtitle={(r) =>
+        [r.document ?? r.email ?? '', r.is_landfill ? 'Aterro' : ''].filter(Boolean).join(' • ')
+      }
     />
   );
 }

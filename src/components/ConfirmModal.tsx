@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing } from '@/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, elevation, radius, spacing, transition } from '@/theme';
 import { Button } from './Button';
 import { Input } from './Input';
 
@@ -39,7 +40,14 @@ export function ConfirmModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
-        <View style={styles.box}>
+        <View style={[styles.box, elevation('xl')]}>
+          <View style={[styles.icon, destructive ? styles.iconDanger : styles.iconBrand]}>
+            <Ionicons
+              name={destructive ? 'alert-circle' : 'help-circle'}
+              size={20}
+              color={destructive ? colors.danger : colors.brand[600]}
+            />
+          </View>
           <Text style={styles.title}>{title}</Text>
           {message ? <Text style={styles.message}>{message}</Text> : null}
           {withInput && (
@@ -53,7 +61,12 @@ export function ConfirmModal({
             />
           )}
           <View style={styles.actions}>
-            <Pressable style={styles.cancel} onPress={onCancel} disabled={loading}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ hovered }: any) => [styles.cancel, transition(), hovered && styles.cancelHover]}
+              onPress={onCancel}
+              disabled={loading}
+            >
               <Text style={styles.cancelText}>{cancelLabel}</Text>
             </Pressable>
             <View style={{ flex: 1 }}>
@@ -72,11 +85,31 @@ export function ConfirmModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  box: { backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.xl, width: '100%' },
-  title: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  message: { fontSize: 14, color: colors.grayText, marginBottom: spacing.lg, lineHeight: 20 },
+  backdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  box: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+  },
+  // Um ícone antes do título diz, antes da leitura, se a confirmação é
+  // rotineira ou destrutiva.
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  iconBrand: { backgroundColor: colors.brand[50], borderWidth: 1, borderColor: colors.greenLine },
+  iconDanger: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder },
+  title: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.sm, letterSpacing: -0.3 },
+  message: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
-  cancel: { paddingVertical: 14, paddingHorizontal: spacing.lg },
-  cancelText: { fontSize: 16, fontWeight: '600', color: colors.grayText },
+  cancel: { paddingVertical: 12, paddingHorizontal: spacing.lg, borderRadius: radius.sm },
+  cancelHover: { backgroundColor: colors.surfaceAlt },
+  cancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 });

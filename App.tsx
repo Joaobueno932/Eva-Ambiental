@@ -9,6 +9,7 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ConfigErrorScreen } from '@/screens/ConfigErrorScreen';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { AlertHost } from '@/utils/alert';
 import { colors } from '@/theme/colors';
 
 export default function App() {
@@ -24,6 +25,8 @@ export default function App() {
           ) : (
             <ConfigErrorScreen />
           )}
+          {/* No navegador é este host que desenha os avisos; no app é um no-op. */}
+          <AlertHost />
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>

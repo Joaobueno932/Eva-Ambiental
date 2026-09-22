@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
     if (!email || !password || !full_name || !role) {
       return json({ error: 'Campos obrigatórios: email, password, full_name, role.' }, 400);
     }
-    if (!['admin', 'analyst', 'viewer'].includes(role)) {
+    if (!['admin', 'analyst', 'operator', 'viewer'].includes(role)) {
       return json({ error: 'Perfil inválido.' }, 400);
     }
     if (String(password).length < 6) {

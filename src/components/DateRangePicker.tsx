@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, transition } from '@/theme';
 import { Input } from './Input';
 import { Button } from './Button';
 import { buildPreset, customRange, DateRange, PresetKey } from '@/utils/dateRanges';
@@ -45,7 +45,9 @@ export function DateRangePicker({ value, onChange }: Props) {
                 setShowCustom(false);
                 onChange(buildPreset(p.key));
               }}
-              style={[styles.chip, active && styles.chipActive]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={({ hovered }: any) => [styles.chip, transition(), hovered && !active && styles.chipHover, active && styles.chipActive]}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
             </Pressable>
@@ -53,7 +55,14 @@ export function DateRangePicker({ value, onChange }: Props) {
         })}
         <Pressable
           onPress={() => setShowCustom((s) => !s)}
-          style={[styles.chip, value.key === 'custom' && styles.chipActive]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: value.key === 'custom' }}
+          style={({ hovered }: any) => [
+            styles.chip,
+            transition(),
+            hovered && value.key !== 'custom' && styles.chipHover,
+            value.key === 'custom' && styles.chipActive,
+          ]}
         >
           <Text style={[styles.chipText, value.key === 'custom' && styles.chipTextActive]}>Personalizado</Text>
         </Pressable>
@@ -81,16 +90,24 @@ const styles = StyleSheet.create({
   row: { gap: spacing.sm, paddingVertical: spacing.xs },
   chip: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: 9,
     borderRadius: radius.full,
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.grayMedium,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.green, borderColor: colors.green },
-  chipText: { color: colors.text, fontWeight: '600', fontSize: 13 },
+  chipHover: { borderColor: colors.borderStrong, backgroundColor: colors.surfaceAlt },
+  chipActive: { backgroundColor: colors.brand[700], borderColor: colors.brand[800] },
+  chipText: { color: colors.textMuted, fontWeight: '600', fontSize: 13 },
   chipTextActive: { color: colors.white },
-  customBox: { marginTop: spacing.md },
+  customBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
+  },
   customRow: { flexDirection: 'row', gap: spacing.md },
   error: { color: colors.danger, fontSize: 12, marginBottom: spacing.sm },
 });

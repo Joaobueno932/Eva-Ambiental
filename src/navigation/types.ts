@@ -15,10 +15,12 @@ export type ProfileStackParamList = {
   AdminWasteTypes: undefined;
   AdminTreatmentTypes: undefined;
   AdminRecipients: undefined;
+  AdminImport: undefined;
 };
 
 export type MainTabsParamList = {
   Painel: undefined;
+  Relatorios: undefined;
   Pesagens: NavigatorScreenParams<WeighingsStackParamList>;
   Perfil: NavigatorScreenParams<ProfileStackParamList>;
 };

@@ -19,7 +19,7 @@ export interface AuthIssue {
   signOut: boolean;
 }
 
-const VALID_ROLES = ['admin', 'analyst', 'viewer'];
+const VALID_ROLES = ['admin', 'analyst', 'operator', 'viewer'];
 
 export const AUTH_MESSAGES: Record<AuthIssueKind, string> = {
   'no-profile': 'Usuário autenticado, mas perfil não encontrado. Verifique a tabela profiles.',

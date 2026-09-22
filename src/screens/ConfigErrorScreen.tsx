@@ -11,7 +11,7 @@ export function ConfigErrorScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.circle}>
-        <Ionicons name="construct-outline" size={48} color={colors.warning} />
+        <Ionicons name="construct-outline" size={32} color={colors.warning} />
       </View>
       <Text style={styles.title}>Configuração ausente</Text>
       <Text style={styles.message}>
@@ -25,22 +25,24 @@ export function ConfigErrorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.pageBg, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   circle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: '#FEF3C7',
+    width: 84,
+    height: 84,
+    borderRadius: radius.full,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center' },
-  message: { fontSize: 14, color: colors.grayText, textAlign: 'center', marginTop: spacing.sm, lineHeight: 22 },
+  title: { fontSize: 19, fontWeight: '700', color: colors.text, textAlign: 'center', letterSpacing: -0.3 },
+  message: { fontSize: 13.5, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm, lineHeight: 22, maxWidth: 480 },
   code: {
     fontWeight: '700',
-    color: colors.greenDark,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
+    color: colors.brand[700],
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.xs,
   },
 });

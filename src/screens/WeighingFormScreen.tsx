@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
@@ -16,6 +17,7 @@ import {
   SelectedPhoto,
   SuccessModal,
 } from '@/components';
+import { SectionHeading, Stepper, SummaryLine } from '@/components/Operations';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -46,6 +48,14 @@ export function WeighingFormScreen() {
   const { profile } = useAuth();
   const { canEditWeighing } = usePermissions();
 
+  // Ref para a função de permissão — evita que o useCallback recrie load() a cada render.
+  // Sem isso, qualquer digitação no formulário recriava load() e disparava o useEffect,
+  // resetando todos os campos enquanto o usuário editava.
+  const canEditRef = useRef(canEditWeighing);
+  canEditRef.current = canEditWeighing;
+
+  const [step, setStep] = useState(0);
+  const steps = ['Origem', 'Resíduo', 'Pesagem e tratamento', 'Evidência', 'Revisão'];
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -64,19 +74,24 @@ export function WeighingFormScreen() {
   const [treatmentTypeId, setTreatmentTypeId] = useState('');
   const [recipientId, setRecipientId] = useState('');
   const [weight, setWeight] = useState('');
+  const [peopleCount, setPeopleCount] = useState('');
+  const [couldDivert, setCouldDivert] = useState(false);
   const [notes, setNotes] = useState('');
   const [dateStr, setDateStr] = useState(dayjs().format('DD/MM/YYYY'));
   const [timeStr, setTimeStr] = useState(dayjs().format('HH:mm'));
   const [photo, setPhoto] = useState<SelectedPhoto | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Campos de localização manual (usados quando a imagem é anexada)
+  // Campos de localização manual
   const [manualLocation, setManualLocation] = useState('');
   const [mStreet, setMStreet] = useState('');
   const [mNeighborhood, setMNeighborhood] = useState('');
   const [mPostal, setMPostal] = useState('');
   const [mCity, setMCity] = useState('');
   const [mState, setMState] = useState('');
+
+  // Checkbox "Usar endereço da unidade?" — aparece após anexar imagem
+  const [useUnitAddress, setUseUnitAddress] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -96,8 +111,9 @@ export function WeighingFormScreen() {
       if (isEdit && editId) {
         const existing = await getWeighing(editId);
         if (existing) {
-          if (!canEditWeighing(existing)) {
-            Alert.alert('Sem permissão', 'Você não pode editar esta pesagem.');
+          // Usa o ref para não adicionar canEditWeighing como dep e recriar load() a cada render
+          if (!canEditRef.current(existing)) {
+            showAlert('Sem permissão', 'Você não pode editar esta pesagem.');
             navigation.goBack();
             return;
           }
@@ -107,6 +123,8 @@ export function WeighingFormScreen() {
           setTreatmentTypeId(existing.treatment_type_id);
           setRecipientId(existing.recipient_id ?? '');
           setWeight(String(existing.weight_kg));
+          setPeopleCount(existing.people_count ? String(existing.people_count) : '');
+          setCouldDivert(existing.could_divert_from_landfill ?? false);
           setNotes(existing.notes ?? '');
           setDateStr(dayjs(existing.weighing_date).format('DD/MM/YYYY'));
           setTimeStr(dayjs(existing.weighing_date).format('HH:mm'));
@@ -119,11 +137,11 @@ export function WeighingFormScreen() {
         }
       }
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao carregar dados.');
+      showAlert('Erro', e?.message ?? 'Falha ao carregar dados.');
     } finally {
       setLoading(false);
     }
-  }, [isEdit, editId, canEditWeighing, navigation]);
+  }, [isEdit, editId, navigation]); // canEditWeighing removido dos deps — usa ref acima
 
   useEffect(() => {
     load();
@@ -138,9 +156,38 @@ export function WeighingFormScreen() {
     [units, clientId]
   );
 
-  // Ao tirar foto na câmera, preenche data/hora e localização automaticamente.
+  const selectedRecipient = useMemo(
+    () => recipients.find((r) => r.id === recipientId) ?? null,
+    [recipients, recipientId]
+  );
+
+  const selectedUnit = useMemo(
+    () => units.find((u) => u.id === unitId) ?? null,
+    [units, unitId]
+  );
+
+  const handleUseUnitAddress = (val: boolean) => {
+    setUseUnitAddress(val);
+    if (val && selectedUnit) {
+      const hasAddr =
+        selectedUnit.street || selectedUnit.neighborhood || selectedUnit.city ||
+        selectedUnit.state || selectedUnit.postal_code || selectedUnit.address;
+      if (!hasAddr) {
+        showAlert('Sem endereço', 'Esta unidade não possui endereço cadastrado.');
+        setUseUnitAddress(false);
+        return;
+      }
+      setMStreet(selectedUnit.street ?? selectedUnit.address ?? '');
+      setMNeighborhood(selectedUnit.neighborhood ?? '');
+      setMCity(selectedUnit.city ?? '');
+      setMState(selectedUnit.state ?? '');
+      setMPostal(selectedUnit.postal_code ?? '');
+    }
+  };
+
   const onPhotoChange = (p: SelectedPhoto | null) => {
     setPhoto(p);
+    setUseUnitAddress(false); // reseta checkbox ao trocar foto
     if (p?.imageSource === 'camera' && p.capturedAt) {
       setDateStr(dayjs(p.capturedAt).format('DD/MM/YYYY'));
       setTimeStr(dayjs(p.capturedAt).format('HH:mm'));
@@ -155,9 +202,16 @@ export function WeighingFormScreen() {
     if (!treatmentTypeId) e.treatmentTypeId = 'Selecione o tratamento.';
     const w = parseFloat(weight.replace(',', '.'));
     if (!weight || isNaN(w) || w <= 0) e.weight = 'Informe um peso válido (kg).';
+    if (peopleCount) {
+      const pc = parseInt(peopleCount, 10);
+      if (isNaN(pc) || pc <= 0 || !Number.isInteger(pc)) e.peopleCount = 'Informe um número inteiro maior que zero.';
+    }
     const dt = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm', true);
     if (!dt.isValid()) e.date = 'Data/hora inválida (DD/MM/AAAA HH:mm).';
     setErrors(e);
+    if (e.clientId || e.unitId || e.date) setStep(0);
+    else if (e.wasteTypeId) setStep(1);
+    else if (e.weight || e.treatmentTypeId || e.peopleCount) setStep(2);
     return Object.keys(e).length === 0;
   };
 
@@ -167,7 +221,6 @@ export function WeighingFormScreen() {
     try {
       const weighingDate = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm').toISOString();
 
-      // Localização manual (preenchida no anexo de imagem)
       const manualDetails: LocationDetails = {
         street: mStreet || null,
         neighborhood: mNeighborhood || null,
@@ -177,7 +230,6 @@ export function WeighingFormScreen() {
       };
       manualDetails.formattedAddress = formatAddress(manualDetails);
 
-      // Câmera → usa o reverse geocode; anexo → usa o preenchimento manual.
       const isCamera = photo?.imageSource === 'camera';
       const locationColumns = isCamera
         ? locationToColumns(photo?.location)
@@ -192,6 +244,8 @@ export function WeighingFormScreen() {
         weighing_date: weighingDate,
         weight_kg: parseFloat(weight.replace(',', '.')),
         notes: notes || null,
+        people_count: peopleCount ? parseInt(peopleCount, 10) : null,
+        could_divert_from_landfill: selectedRecipient?.is_landfill ? couldDivert : null,
         gps_lat: isCamera ? photo?.location?.latitude ?? null : null,
         gps_lng: isCamera ? photo?.location?.longitude ?? null : null,
         manual_location: isCamera ? null : manualLocation || manualDetails.formattedAddress || null,
@@ -208,7 +262,6 @@ export function WeighingFormScreen() {
         weighingId = created.id;
       }
 
-      // Upload da foto (apenas se uma nova foi escolhida)
       if (photo && weighingId) {
         const path = await uploadWeighingPhoto(weighingId, photo.uri);
         await insertPhotoRecord(weighingId, path, {
@@ -223,11 +276,27 @@ export function WeighingFormScreen() {
 
       setShowSuccess(true);
     } catch (e: any) {
-      Alert.alert('Erro ao salvar', e?.message ?? 'Tente novamente.');
+      showAlert('Erro ao salvar', e?.message ?? 'Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
+
+  const summary = <>
+    <SectionHeading title="Resumo do registro" description="Confira os dados antes de enviar." />
+    <SummaryLine label="Cliente" value={clients.find(c => c.id === clientId)?.name} />
+    <SummaryLine label="Unidade" value={selectedUnit?.name} />
+    <SummaryLine label="Resíduo" value={wasteTypes.find(w => w.id === wasteTypeId)?.name} />
+    <SummaryLine label="Peso" value={weight ? weight + ' kg' : undefined} />
+    <SummaryLine label="Tratamento" value={treatmentTypes.find(t => t.id === treatmentTypeId)?.name} />
+    <SummaryLine label="Destinatário" value={selectedRecipient?.name} />
+    <SummaryLine label="Data e hora" value={dateStr + ' • ' + timeStr} />
+    <SummaryLine label="Evidência" value={photo ? (photo.imageSource === 'camera' ? 'Foto capturada' : 'Imagem anexada') : isEdit ? 'Nenhuma nova foto (anexos existentes preservados)' : 'Nenhuma foto anexada'} />
+    <SummaryLine label="Localização" value={shortLocationSummary(photo?.location) ?? ([mStreet, mNeighborhood, mCity, mState, mPostal].filter(Boolean).join(', ') || manualLocation)} />
+    <SummaryLine label="Pessoas na unidade" value={peopleCount} />
+    {selectedRecipient?.is_landfill && <SummaryLine label="Poderia desviar do aterro?" value={couldDivert ? 'Sim' : 'Não'} />}
+    <SummaryLine label="Observações" value={notes} />
+  </>;
 
   if (loading) return <Loading message="Carregando formulário..." />;
 
@@ -235,18 +304,20 @@ export function WeighingFormScreen() {
     <View style={styles.container}>
       <Header
         title={isEdit ? 'Editar Pesagem' : 'Nova Pesagem'}
-        subtitle="Preencha os dados da pesagem"
+        subtitle={`Etapa ${step + 1} de 5 • ${steps[step]}`}
         onBack={() => navigation.goBack()}
       />
-      <FormScreenContainer>
-          <Card>
+      <FormScreenContainer aside={summary}>
+          <Stepper steps={steps} current={step} onChange={setStep} />
+          <View style={{ display: step === 0 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="01" title="Origem do registro" description="Identifique o cliente, a unidade e o momento da pesagem." />
             <Select
               label="Cliente"
               options={clients.map((c) => ({ label: c.name, value: c.id }))}
               value={clientId}
               onChange={(v) => {
                 setClientId(v);
-                setUnitId(''); // reseta unidade ao trocar cliente
+                setUnitId('');
               }}
               error={errors.clientId}
             />
@@ -261,7 +332,13 @@ export function WeighingFormScreen() {
               </View>
             </View>
 
+          </Card></View>
+          <View style={{ display: step === 1 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="02" title="Classificação do resíduo" description="Selecione a categoria correspondente ao material pesado." />
             <Select label="Tipo de resíduo" options={wasteTypes.map((w) => ({ label: w.name, value: w.id }))} value={wasteTypeId} onChange={setWasteTypeId} error={errors.wasteTypeId} />
+          </Card></View>
+          <View style={{ display: step === 2 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="03" title="Pesagem e destinação" description="Informe a massa, o tratamento e o destinatário." />
             <Input
               label="Peso (kg)"
               placeholder="0,00"
@@ -274,9 +351,33 @@ export function WeighingFormScreen() {
             <Select
               label="Destinatário"
               placeholder="Opcional"
-              options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name, value: r.id }))]}
+              options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name + (r.is_landfill ? ' (Aterro)' : ''), value: r.id }))]}
               value={recipientId}
               onChange={setRecipientId}
+            />
+            {selectedRecipient?.is_landfill && (
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>Poderia desviar do aterro?</Text>
+                  <Text style={styles.switchHint}>
+                    Este resíduo poderia ter sido destinado de outra forma em vez de ir para aterro.
+                  </Text>
+                </View>
+                <Switch
+                  value={couldDivert}
+                  onValueChange={setCouldDivert}
+                  trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                  thumbColor={couldDivert ? colors.green : colors.gray}
+                />
+              </View>
+            )}
+            <Input
+              label="Quantidade de pessoas na unidade"
+              placeholder="Opcional — base para cálculo per capita"
+              value={peopleCount}
+              onChangeText={setPeopleCount}
+              keyboardType="number-pad"
+              error={errors.peopleCount}
             />
             <Input
               label="Observações"
@@ -287,25 +388,47 @@ export function WeighingFormScreen() {
               numberOfLines={3}
               style={{ minHeight: 80, textAlignVertical: 'top' }}
             />
-          </Card>
-
-          <Card>
-            <Text style={styles.sectionTitle}>Foto da pesagem</Text>
+          </Card></View>
+          <View style={{ display: step === 3 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="04" title="Evidência e localização" description="Capture uma foto em campo ou anexe uma imagem da galeria." />
             <PhotoPicker value={photo} onChange={onPhotoChange} />
 
-            {/* Campos opcionais aparecem apenas quando a imagem é anexada (upload) */}
+            {/* Campos manuais para upload */}
             {photo?.imageSource === 'upload' && (
               <View style={styles.uploadFields}>
                 <Text style={styles.uploadHint}>
                   Como a imagem foi anexada, informe os dados manualmente (opcional).
                 </Text>
+
+                {/* Checkbox para usar endereço da unidade — aparece dentro do bloco de upload, logo antes dos campos de endereço */}
+                {unitId ? (
+                  <View style={styles.unitAddressRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
+                      {selectedUnit &&
+                        !selectedUnit.street && !selectedUnit.neighborhood &&
+                        !selectedUnit.city && !selectedUnit.address && (
+                        <Text style={[styles.switchHint, { color: colors.warning }]}>
+                          Esta unidade não possui endereço cadastrado.
+                        </Text>
+                      )}
+                    </View>
+                    <Switch
+                      value={useUnitAddress}
+                      onValueChange={handleUseUnitAddress}
+                      trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                      thumbColor={useUnitAddress ? colors.green : colors.gray}
+                    />
+                  </View>
+                ) : null}
+
                 <Input
                   label="Localização manual / ponto de referência"
                   placeholder="Ex.: Galpão 2, Doca de resíduos"
                   value={manualLocation}
                   onChangeText={setManualLocation}
                 />
-                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores" value={mStreet} onChangeText={setMStreet} />
+                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores, 100" value={mStreet} onChangeText={setMStreet} />
                 <Input label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
@@ -347,9 +470,13 @@ export function WeighingFormScreen() {
                 )}
               </View>
             )}
-          </Card>
-
-          <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />
+          </Card></View>
+          {step === 4 && <Card><SectionHeading number="05" title="Revisão antes do envio" description={isEdit ? 'Confira as alterações do registro.' : 'O registro será enviado para validação.'} />{summary}</Card>}
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+            {step > 0 && <Button title="Voltar" variant="outline" fullWidth={false} disabled={saving} onPress={() => setStep(s => s - 1)} />}
+            {step < 4 && <Button title={step === 3 ? 'Revisar registro' : 'Continuar'} icon="arrow-forward" style={{ flex: 1 }} onPress={() => setStep(s => s + 1)} />}
+          </View>
+          {step === 4 && <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />}
       </FormScreenContainer>
 
       <SuccessModal
@@ -370,13 +497,46 @@ export function WeighingFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
-  scroll: { padding: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.pageBg },
   row: { flexDirection: 'row', gap: spacing.md },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  uploadFields: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
-  uploadHint: { color: colors.greenDark, fontSize: 13, marginBottom: spacing.md },
-  gpsInfo: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
-  gpsText: { color: colors.greenDark, fontSize: 13 },
-  gpsCoords: { color: colors.grayText, fontSize: 12, marginTop: 4 },
+  sectionTitle: { fontSize: 15.5, fontWeight: '700', color: colors.text, marginBottom: spacing.md, letterSpacing: -0.2 },
+  uploadFields: {
+    marginTop: spacing.md, backgroundColor: colors.brand[50],
+    borderWidth: 1, borderColor: colors.greenLine,
+    borderRadius: radius.md, padding: spacing.md,
+  },
+  uploadHint: { color: colors.brand[600], fontSize: 12.5, marginBottom: spacing.md, lineHeight: 18 },
+  gpsInfo: {
+    marginTop: spacing.md, backgroundColor: colors.brand[50],
+    borderWidth: 1, borderColor: colors.greenLine,
+    borderRadius: radius.md, padding: spacing.md,
+  },
+  gpsText: { color: colors.brand[700], fontSize: 13, fontWeight: '500' },
+  gpsCoords: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
+    padding: spacing.md + 2,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  unitAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.brand[50],
+    borderRadius: radius.md,
+    padding: spacing.md + 2,
+    marginTop: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.greenLine,
+  },
+  switchLabel: { fontSize: 14.5, fontWeight: '600', color: colors.text },
+  switchHint: { color: colors.textMuted, fontSize: 12, marginTop: 3, lineHeight: 17 },
 });

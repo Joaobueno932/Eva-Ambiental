@@ -5,6 +5,7 @@ import { Loading } from '@/components';
 import { colors } from '@/theme';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { MainTabs } from './MainTabs';
+import { documentTitle, linking } from './linking';
 
 const navTheme = {
   ...DefaultTheme,
@@ -19,7 +20,12 @@ export function RootNavigator() {
   const authenticated = !!session && !!profile;
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      theme={navTheme}
+      linking={linking}
+      documentTitle={documentTitle}
+      fallback={<Loading message="Carregando..." />}
+    >
       {authenticated ? <MainTabs /> : <LoginScreen />}
     </NavigationContainer>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
+import { cameraIsDirect, pickFromCamera, pickFromLibrary } from '@/services/imagePicker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/theme';
 import { Button } from './Button';
@@ -35,14 +36,12 @@ export function PhotoPicker({ value, onChange }: Props) {
   const takePhoto = async () => {
     try {
       setBusy(true);
-      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!camPerm.granted) {
-        Alert.alert('Permissão necessária', 'Autorize o uso da câmera para registrar a foto.');
+      const picked = await pickFromCamera();
+      if (picked.status === 'denied') {
+        showAlert('Permissão necessária', 'Autorize o uso da câmera para registrar a foto.');
         return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.6, mediaTypes: ['images'] });
-      if (result.canceled || !result.assets?.[0]) return;
+      if (picked.status !== 'ok' || !picked.uri) return;
 
       const capturedAt = new Date().toISOString();
 
@@ -55,23 +54,23 @@ export function PhotoPicker({ value, onChange }: Props) {
 
       if (!cap.permissionGranted) {
         locationDenied = true;
-        Alert.alert(
+        showAlert(
           'Localização indisponível',
           'A foto será salva sem coordenadas. Você pode informar a localização manualmente, se desejar.'
         );
       } else if (!cap.location) {
         locationDenied = true;
-        Alert.alert('Localização indisponível', 'Não foi possível obter as coordenadas. A foto será salva sem localização.');
+        showAlert('Localização indisponível', 'Não foi possível obter as coordenadas. A foto será salva sem localização.');
       } else {
         location = { ...cap.location, capturedAt };
         if (!cap.addressResolved) {
-          Alert.alert('Endereço não identificado', 'Coordenadas capturadas, mas não foi possível identificar o endereço.');
+          showAlert('Endereço não identificado', 'Coordenadas capturadas, mas não foi possível identificar o endereço.');
         }
       }
 
-      onChange({ uri: result.assets[0].uri, imageSource: 'camera', capturedAt, location, locationDenied });
+      onChange({ uri: picked.uri, imageSource: 'camera', capturedAt, location, locationDenied });
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível concluir a captura.');
+      showAlert('Erro', e?.message ?? 'Não foi possível concluir a captura.');
     } finally {
       setPhase(null);
       setBusy(false);
@@ -82,17 +81,16 @@ export function PhotoPicker({ value, onChange }: Props) {
   const pickImage = async () => {
     try {
       setBusy(true);
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permissão necessária', 'Autorize o acesso às imagens para anexar a foto.');
+      const picked = await pickFromLibrary();
+      if (picked.status === 'denied') {
+        showAlert('Permissão necessária', 'Autorize o acesso às imagens para anexar a foto.');
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ['images'] });
-      if (result.canceled || !result.assets?.[0]) return;
+      if (picked.status !== 'ok' || !picked.uri) return;
 
-      onChange({ uri: result.assets[0].uri, imageSource: 'upload', location: null });
+      onChange({ uri: picked.uri, imageSource: 'upload', location: null });
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível anexar a imagem.');
+      showAlert('Erro', e?.message ?? 'Não foi possível anexar a imagem.');
     } finally {
       setBusy(false);
     }
@@ -136,11 +134,19 @@ export function PhotoPicker({ value, onChange }: Props) {
       )}
 
       <View style={styles.buttons}>
+        {cameraIsDirect && (
+          <View style={{ flex: 1 }}>
+            <Button title="Tirar foto agora" icon="camera" onPress={takePhoto} loading={busy} />
+          </View>
+        )}
         <View style={{ flex: 1 }}>
-          <Button title="Tirar foto agora" icon="camera" onPress={takePhoto} loading={busy} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Anexar imagem" icon="image" variant="outline" onPress={pickImage} loading={busy} />
+          <Button
+            title="Anexar imagem"
+            icon="image"
+            variant={cameraIsDirect ? 'outline' : 'primary'}
+            onPress={pickImage}
+            loading={busy}
+          />
         </View>
       </View>
     </View>
@@ -149,24 +155,27 @@ export function PhotoPicker({ value, onChange }: Props) {
 
 const styles = StyleSheet.create({
   placeholder: {
-    backgroundColor: colors.greenBg,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
     borderWidth: 1.5,
-    borderColor: colors.greenLight,
+    borderColor: colors.borderStrong,
     borderStyle: 'dashed',
     padding: spacing.xl,
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  placeholderText: { color: colors.greenDark, marginTop: spacing.sm, fontWeight: '600' },
-  preview: { backgroundColor: colors.white, borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, borderWidth: 1, borderColor: colors.grayMedium },
+  placeholderText: { color: colors.textMuted, marginTop: spacing.sm, fontWeight: '600', fontSize: 13.5 },
+  preview: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
+    marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border,
+  },
   image: { width: '100%', height: 200 },
   previewInfo: { padding: spacing.md },
   sourceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  sourceText: { color: colors.greenDark, fontWeight: '600' },
-  gps: { color: colors.grayText, fontSize: 13, marginTop: 4 },
-  address: { color: colors.text, fontSize: 13, marginTop: 4, fontWeight: '500' },
+  sourceText: { color: colors.brand[700], fontWeight: '700', fontSize: 13 },
+  gps: { color: colors.textMuted, fontSize: 12.5, marginTop: 4 },
+  address: { color: colors.text, fontSize: 12.5, marginTop: 4, fontWeight: '500' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
-  loadingText: { color: colors.greenDark, fontSize: 13 },
+  loadingText: { color: colors.textMuted, fontSize: 13 },
   buttons: { flexDirection: 'row', gap: spacing.md },
 });

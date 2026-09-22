@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(npx tsc *)",
+      "Bash(npx expo-doctor *)",
+      "Bash(findstr /i \"document-picker\\\\|sharing\\\\|file-system\\\\|xlsx\\\\|media-library\\\\|image-picker\")",
+      "Bash(npx expo *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const keys=['expo-document-picker','expo-sharing','expo-file-system','expo-image-picker','expo-media-library','expo-camera','expo-location','xlsx']; keys.forEach\\(k=>console.log\\(k+': '+\\(p.dependencies[k]||p.devDependencies&&p.devDependencies[k]||'nao encontrado'\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); ['expo-print','expo-document-picker','expo-sharing','expo-file-system'].forEach\\(k=>console.log\\(k+': '+\\(p.dependencies[k]||'nao encontrado'\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/expo-document-picker/package.json'\\); console.log\\('expo-document-picker instalado:', p.version\\); console.log\\('peerDependencies:', JSON.stringify\\(p.peerDependencies||{}\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/expo-document-picker/package.json'\\); console.log\\('expo-document-picker agora:', p.version\\)\")",
+      "Bash(node test_template.cjs)",
+      "Bash(cd /tmp/xlsx_inspect && cat xl/styles.xml && echo \"\" && echo \"--- row 2 cells \\(A2\\) ---\" && grep -o '<row r=\"2\">.*</row>' xl/worksheets/sheet1.xml | head -c 1000)",
+      "Read(//tmp/**)",
+      "Bash(cd \"c:\\\\Users\\\\joao.pinheiro\\\\Documents\\\\Eva Ambiental - App\" && rm -f test_template.cjs test_template2.cjs test_template3.cjs test_template_final.cjs test_modelo_pesagens.xlsx test_modelo2.xlsx test_modelo3.xlsx test_modelo_final.xlsx && rm -rf /tmp/xlsx_inspect /tmp/xlsx_inspect2 /tmp/xlsx_inspect3 && git status --short)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

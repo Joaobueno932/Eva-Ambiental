@@ -11,7 +11,7 @@ export function AdminUnitsScreen() {
   useEffect(() => {
     listClients(false)
       .then(setClients)
-      .catch(() => setClients([])) // falha de rede: segue com lista vazia, sem quebrar
+      .catch(() => setClients([]))
       .finally(() => setReady(true));
   }, []);
 
@@ -26,12 +26,23 @@ export function AdminUnitsScreen() {
       placeholder: 'Selecione o cliente',
       options: clients.map((c) => ({ label: c.name, value: c.id })),
     },
-    { key: 'name', label: 'Nome da unidade', type: 'text', placeholder: 'Ex.: Unidade Central', required: true },
-    { key: 'city', label: 'Cidade', type: 'text', placeholder: 'Cidade' },
-    { key: 'address', label: 'Endereço', type: 'text', placeholder: 'Endereço completo' },
+    { key: 'name', label: 'Nome da unidade / localidade', type: 'text', placeholder: 'Ex.: Unidade Central', required: true },
+    { key: 'street', label: 'Rua / Logradouro', type: 'text', placeholder: 'Ex.: Av. Paulista, 1000' },
+    { key: 'neighborhood', label: 'Bairro', type: 'text', placeholder: 'Ex.: Centro' },
+    { key: 'city', label: 'Cidade', type: 'text', placeholder: 'Ex.: São Paulo' },
+    { key: 'state', label: 'Estado (UF)', type: 'text', placeholder: 'Ex.: SP' },
+    { key: 'postal_code', label: 'CEP', type: 'text', placeholder: 'Ex.: 01310-100' },
   ];
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name ?? '';
+
+  const renderSubtitle = (u: Unit) => {
+    const parts = [
+      clientName(u.client_id),
+      [u.city, u.state].filter(Boolean).join(' - '),
+    ].filter(Boolean);
+    return parts.join(' • ');
+  };
 
   return (
     <MasterCrud<Unit>
@@ -41,7 +52,7 @@ export function AdminUnitsScreen() {
       load={() => listUnits(false)}
       upsert={upsertUnit}
       renderTitle={(u) => u.name}
-      renderSubtitle={(u) => [clientName(u.client_id), u.city].filter(Boolean).join(' • ')}
+      renderSubtitle={renderSubtitle}
     />
   );
 }

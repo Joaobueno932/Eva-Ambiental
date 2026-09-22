@@ -13,3 +13,14 @@ export const evaImages = {
 } as const;
 
 export type EvaImageKey = keyof typeof evaImages;
+
+/**
+ * Cenário de fundo das telas públicas (acesso).
+ * Fora do conjunto da mascote porque não é personagem: é ambientação.
+ */
+export const sceneImages = {
+  /** Mata atlântica vista do alto, com o rio ao centro — fundo da tela de acesso. */
+  login: require('../../img/login-bg.png'),
+} as const;
+
+export type SceneImageKey = keyof typeof sceneImages;

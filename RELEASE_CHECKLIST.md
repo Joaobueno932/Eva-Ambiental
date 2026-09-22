@@ -10,6 +10,9 @@ Use este guia para validar o app de ponta a ponta com um **Supabase real** e um 
 - [ ] **SQL Editor** → executar **nesta ordem**:
   - [ ] `supabase/migrations/0001_initial_schema.sql`
   - [ ] `supabase/migrations/0002_storage.sql`
+  - [ ] `supabase/migrations/0003_grants_and_profiles_rls.sql`
+  - [ ] `supabase/migrations/0004_location_details.sql`
+  - [ ] `supabase/migrations/0005_operator_and_cancel_weighing.sql`
   - [ ] `supabase/seed.sql`
 - [ ] Confirmar que o bucket **`weighing-photos`** foi criado como **privado** (Storage → Buckets → *public* = OFF).
 - [ ] Deploy da Edge Function: `supabase functions deploy admin-create-user`.
@@ -37,7 +40,7 @@ Use este guia para validar o app de ponta a ponta com um **Supabase real** e um 
 
 ---
 
-## 3. Teste dos 3 perfis
+## 3. Teste dos 4 perfis
 
 Crie um usuário de cada perfil (Perfil → Administração → Usuários, logado como admin).
 
@@ -45,20 +48,31 @@ Crie um usuário de cada perfil (Perfil → Administração → Usuários, logad
 - [ ] Vê o Painel completo e gera PDF/CSV.
 - [ ] Registra pesagem (FAB `+` visível).
 - [ ] Em uma pesagem **pendente**: **Aprovar** e **Rejeitar** (com motivo) funcionam.
-- [ ] Edita qualquer pesagem.
+- [ ] **Cancela** pesagem (botão "Cancelar pesagem") com motivo obrigatório — campo vazio bloqueia.
+- [ ] Pesagem cancelada exibe badge **"Cancelada"** na lista e nos detalhes.
+- [ ] Dashboard **não** inclui pesagem cancelada nos totais.
+- [ ] Edita qualquer pesagem **não cancelada**.
 - [ ] Administração visível: cria/edita usuários, ativa/desativa, define perfil; gerencia clientes, unidades, resíduos, tratamentos, destinatários.
 
 ### Analista
 - [ ] Registra pesagem (FAB `+` visível) com foto e GPS.
-- [ ] Edita **apenas** as próprias pesagens **pendentes**.
-- [ ] **Não** vê Aprovar/Rejeitar.
+- [ ] Edita **apenas** as próprias pesagens **pendentes** (não canceladas).
+- [ ] Vê botões **Aprovar** e **Rejeitar** em pesagens pendentes.
+- [ ] Pode **cancelar** pesagem com motivo.
 - [ ] **Não** acessa Administração (card não aparece no Perfil).
+- [ ] Gera PDF/CSV.
+
+### Operador
+- [ ] Registra pesagem (FAB `+` visível) com foto e GPS.
+- [ ] Edita **apenas** as próprias pesagens **pendentes**.
+- [ ] **Não** vê botões Aprovar, Rejeitar ou Cancelar.
+- [ ] **Não** acessa Administração.
 - [ ] Gera PDF/CSV.
 
 ### Visualizador
 - [ ] Vê Painel e lista (sem botão `+`).
 - [ ] Abre detalhes e amplia fotos.
-- [ ] **Não** registra, edita ou aprova.
+- [ ] **Não** registra, edita, aprova ou cancela.
 - [ ] Gera PDF/CSV.
 
 ### Usuário inativo

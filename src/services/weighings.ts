@@ -10,16 +10,22 @@ const SELECT_FULL = `
   recipient:recipients(*),
   creator:profiles!weighings_created_by_fkey(id, full_name, email, role),
   approver:profiles!weighings_approved_by_fkey(id, full_name, email, role),
+  canceler:profiles!weighings_canceled_by_fkey(id, full_name, email, role),
   photos:weighing_photos(id, image_source)
 `;
 
 export interface WeighingFilters {
   search?: string;
-  startDate?: string; // ISO
-  endDate?: string; // ISO
+  startDate?: string; // ISO — filtra pela data real da pesagem (weighing_date)
+  endDate?: string; // ISO — filtra pela data real da pesagem (weighing_date)
+  clientId?: string;
   unitId?: string;
   wasteTypeId?: string;
-  approvalStatus?: ApprovalStatus;
+  treatmentTypeId?: string;
+  recipientId?: string;
+  /** 'pending' | 'approved' | 'rejected' | 'canceled' */
+  approvalStatus?: ApprovalStatus | 'canceled';
+  excludeCanceled?: boolean;
 }
 
 export async function listWeighings(filters: WeighingFilters = {}): Promise<Weighing[]> {
@@ -27,9 +33,21 @@ export async function listWeighings(filters: WeighingFilters = {}): Promise<Weig
 
   if (filters.startDate) q = q.gte('weighing_date', filters.startDate);
   if (filters.endDate) q = q.lte('weighing_date', filters.endDate);
+  if (filters.clientId) q = q.eq('client_id', filters.clientId);
   if (filters.unitId) q = q.eq('unit_id', filters.unitId);
   if (filters.wasteTypeId) q = q.eq('waste_type_id', filters.wasteTypeId);
-  if (filters.approvalStatus) q = q.eq('approval_status', filters.approvalStatus);
+  if (filters.treatmentTypeId) q = q.eq('treatment_type_id', filters.treatmentTypeId);
+  if (filters.recipientId) q = q.eq('recipient_id', filters.recipientId);
+
+  if (filters.approvalStatus === 'canceled') {
+    // Mostrar apenas canceladas
+    q = q.not('canceled_at', 'is', null);
+  } else if (filters.approvalStatus) {
+    // Filtrar por status de aprovação — excluir canceladas do resultado
+    q = q.eq('approval_status', filters.approvalStatus as ApprovalStatus).is('canceled_at', null);
+  } else if (filters.excludeCanceled) {
+    q = q.is('canceled_at', null);
+  }
 
   const { data, error } = await q;
   if (error) throw error;
@@ -70,6 +88,8 @@ export interface WeighingInput extends LocationColumns {
   weighing_date: string;
   weight_kg: number;
   notes?: string | null;
+  people_count?: number | null;
+  could_divert_from_landfill?: boolean | null;
   gps_lat?: number | null;
   gps_lng?: number | null;
   manual_location?: string | null;
@@ -117,4 +137,28 @@ export async function rejectWeighing(id: string, approverId: string, reason: str
     })
     .eq('id', id);
   if (error) throw error;
+}
+
+/** Cancelamento lógico: preserva o registro para auditoria. */
+export async function cancelWeighing(id: string, canceledBy: string, reason: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('weighings')
+    .update({
+      canceled_at: now,
+      canceled_by: canceledBy,
+      cancellation_reason: reason,
+    })
+    .eq('id', id);
+  if (error) throw error;
+
+  // Registra em audit_logs (erros de log não devem bloquear o fluxo principal)
+  await supabase.from('audit_logs').insert({
+    user_id: canceledBy,
+    action: 'cancel_weighing',
+    entity: 'weighings',
+    entity_id: id,
+    new_data: { canceled_at: now, canceled_by: canceledBy, cancellation_reason: reason },
+  });
 }
