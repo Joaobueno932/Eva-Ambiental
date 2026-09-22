@@ -1,158 +1,55 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { showAlert } from '@/utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BarChart, Button, Card, DateRangePicker, EmptyState, Header, Loading, Select, Tag } from '@/components';
+import { BarChart, Button, Card, ColumnChart, DateRangePicker, DonutChart, EmptyState, Header, LatestWeighingsTable, Loading, Select, Tag, Topbar } from '@/components';
 import { MetricStrip, SectionHeading } from '@/components/Operations';
 import { usePermissions } from '@/hooks/usePermissions';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabsParamList } from '@/navigation/types';
-import { operationSummary } from '@/utils/operations';
-import { WeighingTable } from '@/components/WeighingTable';
+import { dailyStatusSeries } from '@/utils/operations';
 import { WeighingCard } from '@/components/WeighingCard';
 import { colors, elevation, gradient, gradients, layout, radius, spacing, transition } from '@/theme';
 import { useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDashboardStats } from '@/services/dashboard';
-import { listWeighings } from '@/services/weighings';
-import { listClients, listUnits } from '@/services/masters';
-import { Client, DashboardStats, Unit, Weighing } from '@/types';
-import { buildPreset, DateRange } from '@/utils/dateRanges';
-import { classifyDiversion, formatNumber, formatPercent, formatWeight, roleLabel } from '@/utils/format';
-import { generateCsvReport, generatePdfReport, generateXlsxReport } from '@/utils/reports';
+import { PERIOD_OPTIONS, useOperationScope } from '@/hooks/useOperationScope';
+import { classifyDiversion, formatDate, formatLongDate, formatNumber, formatPercent, formatWeight, roleLabel } from '@/utils/format';
 
-export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean }) {
+export function DashboardScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const { canCreateWeighing } = usePermissions();
-  const loadVersion = useRef(0);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [records, setRecords] = useState<Weighing[]>([]);
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const isDesktop = useIsDesktop();
-  const [range, setRange] = useState<DateRange>(buildPreset('month'));
-  const [clientId, setClientId] = useState<string>('');
-  const [unitId, setUnitId] = useState<string>('');
-  const [clients, setClients] = useState<Client[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
-  const loadMasters = useCallback(async () => {
-    try {
-      const [c, u] = await Promise.all([listClients(true), listUnits(true)]);
-      setClients(c);
-      setUnits(u);
-    } catch {
-      /* silencioso — filtros opcionais */
-    }
-  }, []);
-
-  const load = useCallback(async () => {
-    const version = ++loadVersion.current;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const data = await getDashboardStats({
-        startDate: range.startDate,
-        endDate: range.endDate,
-        clientId: clientId || undefined,
-        unitId: unitId || undefined,
-      });
-      const rows = await listWeighings({ startDate: range.startDate, endDate: range.endDate, clientId: clientId || undefined, unitId: unitId || undefined });
-      if (version !== loadVersion.current) return;
-      setRecords(rows);
-      setStats(data);
-    } catch (e: any) {
-      if (version === loadVersion.current) setLoadError(e?.message ?? 'Falha ao carregar o painel.');
-    } finally {
-      if (version === loadVersion.current) { setLoading(false); setRefreshing(false); }
-    }
-  }, [range, clientId, unitId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadMasters();
-      load();
-    }, [loadMasters, load])
-  );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
-
-  // Unidades exibidas no filtro: todas, ou apenas as do cliente selecionado.
-  const filteredUnits = useMemo(
-    () => (clientId ? units.filter((u) => u.client_id === clientId) : units),
-    [units, clientId]
-  );
-  const clientOptions = useMemo(
-    () => [{ label: 'Todos os clientes', value: '' }, ...clients.map((c) => ({ label: c.name, value: c.id }))],
-    [clients]
-  );
-  const unitOptions = useMemo(
-    () => [{ label: 'Todas as unidades', value: '' }, ...filteredUnits.map((u) => ({ label: u.name, value: u.id }))],
-    [filteredUnits]
-  );
-
-  const onChangeClient = (v: string) => {
-    setClientId(v);
-    // Se a unidade selecionada não pertence ao novo cliente, limpa a seleção.
-    if (v && unitId) {
-      const stillValid = units.some((u) => u.id === unitId && u.client_id === v);
-      if (!stillValid) setUnitId('');
-    }
-  };
-
-  const clearFilters = () => {
-    setClientId('');
-    setUnitId('');
-    setRange(buildPreset('month'));
-  };
-
-  const clientName = clients.find((c) => c.id === clientId)?.name;
-  const unitName = units.find((u) => u.id === unitId)?.name;
-  const hasEntityFilter = !!clientId || !!unitId;
-
-  const exportReport = async (type: 'xlsx' | 'pdf' | 'csv') => {
-    if (!stats) return;
-    setExporting(true);
-    try {
-      const weighings = await listWeighings({
-        startDate: range.startDate,
-        endDate: range.endDate,
-        clientId: clientId || undefined,
-        unitId: unitId || undefined,
-        excludeCanceled: true,
-      });
-      const scope = [clientName, unitName].filter(Boolean).join(' • ');
-      const periodLabel = scope ? `${range.label} — ${scope}` : range.label;
-      const ctx = { periodLabel, stats, weighings };
-      if (type === 'xlsx') await generateXlsxReport(ctx);
-      else if (type === 'pdf') await generatePdfReport(ctx);
-      else await generateCsvReport(ctx);
-    } catch (e: any) {
-      showAlert('Erro', e?.message ?? 'Falha ao gerar relatório.');
-    } finally {
-      setExporting(false);
-    }
-  };
+  const {
+    records, stats, operations, loading, loadError, refreshing,
+    range, clientName, unitName, hasEntityFilter,
+    draftRange, setDraftRange, draftClientId, draftUnitId, setDraftUnitId,
+    clientOptions, unitOptions, dirtyFilters,
+    onChangeClient, onChangePeriod, applyFilters, clearFilters,
+    load, onRefresh, deltaProps,
+  } = useOperationScope();
 
   if (loading) return <Loading message="Carregando painel..." />;
 
-  if (loadError) return <View style={styles.container}><Header title={reportsOnly ? 'Central de relatórios' : 'Operação ambiental'} /><Card><EmptyState icon="cloud-offline-outline" title="Não foi possível carregar os dados" message={loadError} /><Button title="Tentar novamente" onPress={load} /></Card></View>;
+  if (loadError) return <View style={styles.container}><Header title="Operação ambiental" /><Card><EmptyState icon="cloud-offline-outline" title="Não foi possível carregar os dados" message={loadError} /><Button title="Tentar novamente" onPress={load} /></Card></View>;
 
   // Em tela grande os blocos de análise ficam lado a lado.
   const gridItem = isDesktop ? webStyles.gridItem : undefined;
 
-  const operations = operationSummary(records);
   const hasData = stats && stats.totalWeighings > 0;
   const cls = stats ? classifyDiversion(stats.diversionRate) : null;
+
+  /** Série do gráfico de evolução, contínua dentro do período aplicado. */
+  const evolution = dailyStatusSeries(records, range.startDate, range.endDate);
+
+  const statusSlices = [
+    { label: 'Aguardando validação', value: operations.status.pending, color: colors.pendingRing },
+    { label: 'Aprovadas', value: operations.status.approved, color: colors.statusChart.approved },
+    { label: 'Rejeitadas', value: operations.status.rejected, color: colors.statusChart.rejected },
+    { label: 'Canceladas', value: operations.status.canceled, color: colors.statusChart.canceled },
+  ];
 
   const lostDiversionColor = stats
     ? stats.lostDiversion.rate <= 10
@@ -162,13 +59,42 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
       : '#DC2626'
     : '#16A34A';
 
+  const pageTitle = 'Operação ambiental';
+
   return (
     <View style={styles.container}>
+      {/* No celular a identificação de quem está logado fica na aba Perfil e a
+          navegação é a barra inferior — a trilha não teria onde caber. */}
+      {isDesktop && (
+        <Topbar
+          crumbs={[
+            { label: 'Painel', onPress: () => navigation.navigate('Painel') },
+            { label: pageTitle },
+          ]}
+          userName={profile?.full_name}
+          userRole={roleLabel[profile?.role ?? 'viewer']}
+          notificationCount={operations.status.pending}
+          onNotifications={() => navigation.navigate('Pesagens', { screen: 'WeighingsList' })}
+          onUser={() => navigation.navigate('Perfil', { screen: 'ProfileHome' })}
+          onSignOut={signOut}
+        />
+      )}
       <Header
-        eyebrow={reportsOnly ? 'Relatórios' : 'Painel'}
-        title={reportsOnly ? 'Central de relatórios' : 'Operação ambiental'}
-        subtitle={reportsOnly ? 'Consolide, confira e exporte os registros da operação' : 'Monitoramento, validação e rastreabilidade de resíduos'}
-        right={!reportsOnly && isDesktop && canCreateWeighing ? <Button title="Nova pesagem" icon="add" onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingForm' })} fullWidth={false} /> : undefined}
+        eyebrow="Painel"
+        icon="leaf"
+        title={pageTitle}
+        subtitle="Monitoramento, validação e rastreabilidade de resíduos em tempo real."
+        right={isDesktop ? (
+          <View style={styles.headerRight}>
+            <View style={styles.todayRow}>
+              <Ionicons name="calendar-outline" size={14} color={colors.textSoft} />
+              <Text style={styles.today}>{formatLongDate()}</Text>
+            </View>
+            {canCreateWeighing ? (
+              <Button title="Nova pesagem" icon="add" variant="cta" onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingForm' })} fullWidth={false} />
+            ) : null}
+          </View>
+        ) : undefined}
       />
       <ScrollView
         contentContainerStyle={[
@@ -178,93 +104,80 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.green]} />}
       >
         {/* No site quem está logado já aparece no rodapé do menu lateral. */}
-        {!isDesktop && !reportsOnly && (
+        {!isDesktop && (
           <View style={styles.greeting}>
             <Text style={styles.hello}>Olá, {profile?.full_name?.split(' ')[0]} 👋</Text>
             <Text style={styles.role}>{roleLabel[profile?.role ?? 'viewer']}</Text>
           </View>
         )}
 
-        {!isDesktop && !reportsOnly && canCreateWeighing && <Button title="Registrar pesagem" icon="add" onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingForm' })} style={{ marginBottom: spacing.lg }} />}
+        {!isDesktop && canCreateWeighing && <Button title="Registrar pesagem" icon="add" onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingForm' })} style={{ marginBottom: spacing.lg }} />}
         {/* Período, cliente, unidade e ações num painel só: antes eram três
             blocos soltos e a página começava com uma pilha de controles sem
             contorno, o que fazia a área de filtros parecer o conteúdo. */}
-        <View style={[styles.scope, elevation('sm')]}>
-          <SectionHeading
-            title="Escopo da operação"
-            description="Período, cliente e unidade considerados nos números abaixo."
-            right={isDesktop ? (
-              <Pressable
-                onPress={onRefresh}
-                accessibilityRole="button"
-                accessibilityLabel="Atualizar"
-                style={({ hovered }: any) => [styles.iconBtn, transition(), hovered && styles.iconBtnHover]}
-              >
-                <Ionicons name="refresh" size={16} color={colors.textMuted} />
-              </Pressable>
-            ) : undefined}
-          />
-          <DateRangePicker value={range} onChange={setRange} />
-
-          <View style={[isDesktop ? webStyles.filterRow : undefined, styles.filterBlock]}>
-            <View style={isDesktop ? webStyles.filterCell : undefined}>
-              <Select label="Cliente" options={clientOptions} value={clientId} onChange={onChangeClient} />
+        {/* Filtros numa faixa só, na ordem em que a pergunta é feita:
+            período, de quem, de onde — e então aplicar. Antes eram três
+            blocos empilhados que faziam a área de filtro parecer o conteúdo
+            da página. */}
+        <View style={[styles.filterBar, elevation('sm')]}>
+          <View style={isDesktop ? webStyles.filterRow : styles.filterStack}>
+            <View style={isDesktop ? webStyles.filterPeriod : undefined}>
+              <Select
+                label="Período"
+                options={PERIOD_OPTIONS}
+                value={draftRange.key}
+                onChange={onChangePeriod}
+              />
+            </View>
+            <View style={isDesktop ? webStyles.filterRange : undefined}>
+              {/* Datas resolvidas do preset: o rótulo "Este Mês" não diz onde
+                  o mês começa nem termina. */}
+              <Text style={styles.rangeLabel}>&nbsp;</Text>
+              <View style={styles.rangeBox}>
+                <Text style={styles.rangeText} numberOfLines={1}>
+                  {draftRange.startDate ? formatDate(draftRange.startDate) : '—'} – {draftRange.endDate ? formatDate(draftRange.endDate) : '—'}
+                </Text>
+              </View>
             </View>
             <View style={isDesktop ? webStyles.filterCell : undefined}>
-              <Select label="Unidade" options={unitOptions} value={unitId} onChange={setUnitId} />
+              <Select label="Cliente" options={clientOptions} value={draftClientId} onChange={onChangeClient} />
             </View>
-          </View>
-
-          <View style={styles.scopeFooter}>
-            <View style={styles.activeFilters}>
-              {hasEntityFilter ? (
-                <>
-                  {clientName ? <Tag label={clientName} dot /> : null}
-                  {unitName ? <Tag label={unitName} dot /> : null}
-                </>
-              ) : (
-                <Text style={styles.scopeHint}>Sem filtros — todos os clientes e unidades.</Text>
-              )}
+            <View style={isDesktop ? webStyles.filterCell : undefined}>
+              <Select label="Unidade" options={unitOptions} value={draftUnitId} onChange={setDraftUnitId} />
             </View>
-            <View style={styles.scopeActions}>
-              {!isDesktop && (
-                <Button title="Atualizar" icon="refresh" variant="outline" onPress={onRefresh} fullWidth={false} style={styles.flexBtn} />
-              )}
-              {hasEntityFilter || range.key !== 'month' ? (
+            <View style={isDesktop ? webStyles.filterActions : styles.filterStackActions}>
+              <Button
+                title="Aplicar filtros"
+                icon="funnel-outline"
+                variant={dirtyFilters ? 'primary' : 'outline'}
+                onPress={applyFilters}
+                fullWidth={!isDesktop}
+              />
+              {hasEntityFilter || range.key !== 'month' || dirtyFilters ? (
                 <Pressable onPress={clearFilters} style={({ hovered }: any) => [styles.clearBtn, transition(), hovered && styles.clearBtnHover]} accessibilityRole="button">
-                  <Ionicons name="close-circle-outline" size={15} color={colors.textMuted} />
+                  <Ionicons name="refresh" size={14} color={colors.textMuted} />
                   <Text style={styles.clearBtnText}>Limpar filtros</Text>
                 </Pressable>
               ) : null}
             </View>
           </View>
+
+          {/* O seletor completo só aparece quando o período é personalizado. */}
+          {draftRange.key === 'custom' ? (
+            <View style={styles.customRange}>
+              <DateRangePicker value={draftRange} onChange={setDraftRange} />
+            </View>
+          ) : null}
+
+          {hasEntityFilter ? (
+            <View style={styles.activeFilters}>
+              {clientName ? <Tag label={clientName} dot /> : null}
+              {unitName ? <Tag label={unitName} dot /> : null}
+            </View>
+          ) : null}
         </View>
 
-        {reportsOnly && <Card>
-          <SectionHeading title="Conjunto selecionado" description={range.label} />
-          <Text style={styles.diversionHint}>{clientName ?? 'Todos os clientes'} • {unitName ?? 'Todas as unidades'}</Text>
-          <Text style={styles.cardTitle}>{operations.exportCount} registros para exportação</Text>
-          <Text style={styles.diversionHint}>Exportação: registros não cancelados, incluindo rejeitados. Indicadores: apenas pendentes e aprovados.</Text>
-          <View style={webStyles.reportActions}>{(['pdf', 'csv', 'xlsx'] as const).map(type => <Button key={type} title={type.toUpperCase()} icon="download-outline" variant={type === 'pdf' ? 'primary' : 'outline'} fullWidth={false} loading={exporting} disabled={!stats} onPress={() => exportReport(type)} />)}</View>
-        </Card>}
-        {!reportsOnly && <Card>
-          <SectionHeading title="Situação das pesagens" description="Todos os status no período selecionado. Canceladas são contabilizadas separadamente." />
-          {/* Contagem por situação: o número vem antes do rótulo e a cor do
-              ponto é a mesma das pílulas da listagem, para que as duas telas
-              se leiam do mesmo jeito. */}
-          <View style={styles.statusRow}>{([
-            ['Aguardando validação', operations.status.pending, colors.warning],
-            ['Aprovadas', operations.status.approved, colors.success],
-            ['Rejeitadas', operations.status.rejected, colors.danger],
-            ['Canceladas', operations.status.canceled, colors.textSoft],
-          ] as const).map(([label, count, tone]) => <View key={label} style={styles.statusCell}>
-            <View style={styles.statusHead}>
-              <View style={[styles.statusDot, { backgroundColor: tone }]} />
-              <Text style={styles.statusCount}>{count}</Text>
-            </View>
-            <Text style={styles.statusLabel}>{label}</Text>
-          </View>)}</View>
-        </Card>}
+
         {!hasData ? (
           <Card>
             <EmptyState
@@ -276,10 +189,25 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
         ) : (
           <>
             <MetricStrip items={[
-              { label: 'Pesagens consideradas', value: formatNumber(stats!.totalWeighings), hint: 'Pendentes e aprovadas', icon: 'documents-outline' },
-              { label: 'Massa registrada', value: formatWeight(stats!.totalWeight), hint: 'Sem rejeitadas e canceladas', icon: 'scale-outline' },
-              { label: 'Desvio de aterro', value: formatPercent(stats!.diversionRate), hint: 'Sobre a massa considerada', icon: 'leaf-outline', tone: cls?.color },
-              { label: 'Aguardando validação', value: String(operations.status.pending), hint: 'No período selecionado', icon: 'hourglass-outline', tone: operations.status.pending > 0 ? colors.warning : undefined },
+              {
+                label: 'Pesagens registradas', value: formatNumber(stats!.totalWeighings),
+                icon: 'documents-outline', ...deltaProps(stats!.trend?.weighings),
+              },
+              {
+                label: 'Massa registrada', value: formatWeight(stats!.totalWeight),
+                icon: 'scale-outline', ...deltaProps(stats!.trend?.weight),
+              },
+              {
+                label: 'Desvio de aterro', value: formatPercent(stats!.diversionRate),
+                icon: 'leaf-outline', tone: cls?.color, valueTone: cls?.color,
+                ...deltaProps(stats!.trend?.diversionPoints, 'points'),
+              },
+              {
+                label: 'Aguardando validação', value: String(operations.status.pending),
+                icon: 'hourglass-outline', tone: colors.pendingRing,
+                // Fila de validação que cresce não é boa notícia: inverte as cores.
+                invertDelta: true, ...deltaProps(stats!.trend?.pending),
+              },
             ]} />
             <View style={styles.baseRow}>
               <Ionicons name="business-outline" size={13} color={colors.textSoft} />
@@ -287,12 +215,25 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
                 Base cadastral: {stats!.activeClients} clientes ativos • {stats!.activeUnits} unidades ativas
               </Text>
             </View>
-            {!reportsOnly && <Card>
-              <SectionHeading title="Evolução da massa registrada" description="Agrupamento diário de pesagens pendentes e aprovadas (kg)." />
-              <BarChart data={operations.daily} />
-            </Card>}
+            {/* Evolução e composição lado a lado: a primeira responde "como
+                veio ao longo do mês", a segunda "em que pé está agora". */}
+            {<View style={isDesktop ? webStyles.analysisRow : undefined}>
+              <Card style={isDesktop ? webStyles.analysisWide : undefined}>
+                <SectionHeading
+                  title="Evolução das pesagens"
+                  right={<View style={styles.rangeChip}>
+                    <Text style={styles.rangeChipText}>{range.label}</Text>
+                  </View>}
+                />
+                <ColumnChart data={evolution} />
+              </Card>
+              <Card style={isDesktop ? webStyles.analysisNarrow : undefined}>
+                <SectionHeading title="Situação das pesagens" />
+                <DonutChart slices={statusSlices} centerLabel="pesagens" />
+              </Card>
+            </View>}
 
-            {!reportsOnly && <View style={isDesktop ? webStyles.grid : undefined}>
+            {<View style={isDesktop ? webStyles.grid : undefined}>
             <Card style={gridItem} accent>
               <Text style={styles.cardTitle}>Taxa de desvio de aterro</Text>
               <View style={styles.diversionRow}>
@@ -377,9 +318,21 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
             </View>}
           </>
         )}
-        {!reportsOnly && records.length > 0 && <Card>
-          <SectionHeading title="Registros recentes" description="Abra um registro para consultar suas evidências e decisões." />
-          {isDesktop ? <WeighingTable items={records.slice(0, 5)} onOpen={id => navigation.navigate('Pesagens', { screen: 'WeighingDetails', params: { id } })} /> : records.slice(0, 5).map(item => <WeighingCard key={item.id} item={item} onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingDetails', params: { id: item.id } })} />)}
+        {records.length > 0 && <Card>
+          <SectionHeading
+            title="Últimas pesagens"
+            right={<Pressable
+              onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingsList' })}
+              accessibilityRole="link"
+              style={({ hovered }: any) => [styles.seeAll, transition(), hovered && styles.seeAllHover]}
+            >
+              <Text style={styles.seeAllText}>Ver todas</Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.brand[700]} />
+            </Pressable>}
+          />
+          {isDesktop
+            ? <LatestWeighingsTable items={records.slice(0, 5)} onOpen={id => navigation.navigate('Pesagens', { screen: 'WeighingDetails', params: { id } })} />
+            : records.slice(0, 5).map(item => <WeighingCard key={item.id} item={item} onPress={() => navigation.navigate('Pesagens', { screen: 'WeighingDetails', params: { id: item.id } })} />)}
         </Card>}
       </ScrollView>
     </View>
@@ -390,14 +343,13 @@ export function DashboardScreen({ reportsOnly = false }: { reportsOnly?: boolean
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.pageBg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  flexBtn: { flex: 1 },
 
   greeting: { marginBottom: spacing.lg },
   hello: { fontSize: 22, fontWeight: '700', color: colors.text, letterSpacing: -0.4 },
   role: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
 
-  /** Painel de escopo: período, filtros e ações. */
-  scope: {
+  /** Faixa de filtros: período, cliente, unidade e a ação de aplicar. */
+  filterBar: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -405,31 +357,40 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
-  filterBlock: { marginTop: spacing.md },
-  scopeFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
-    paddingTop: spacing.md,
+  filterStack: { gap: spacing.md },
+  filterStackActions: { gap: spacing.sm, marginTop: spacing.xs },
+  // Alinha a caixa de datas com os selects, que têm rótulo acima.
+  rangeLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6, color: 'transparent' },
+  rangeBox: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
   },
-  scopeHint: { color: colors.textSoft, fontSize: 12.5 },
-  scopeActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexGrow: 1, justifyContent: 'flex-end' },
-  activeFilters: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, flexShrink: 1 },
+  rangeText: { color: colors.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] },
+  customRange: { marginTop: spacing.md },
 
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
+  headerRight: { alignItems: 'flex-end', gap: spacing.sm },
+  todayRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  today: { color: colors.textMuted, fontSize: 12.5 },
+
+  rangeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  iconBtnHover: { backgroundColor: colors.brand[50], borderColor: colors.brand[200] },
+  rangeChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.sm },
+  seeAllHover: { backgroundColor: colors.greenBg },
+  seeAllText: { color: colors.brand[700], fontSize: 13, fontWeight: '700' },
+  activeFilters: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, flexShrink: 1, marginTop: spacing.md },
   clearBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,24 +401,6 @@ const styles = StyleSheet.create({
   },
   clearBtnHover: { backgroundColor: colors.surfaceAlt },
   clearBtnText: { color: colors.textMuted, fontWeight: '600', fontSize: 12.5 },
-
-  /** Contagem por situação. */
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  statusCell: {
-    flexGrow: 1,
-    flexBasis: '22%',
-    minWidth: 132,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  statusHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusCount: { fontSize: 20, fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  statusLabel: { fontSize: 11.5, color: colors.textMuted, marginTop: 3, fontWeight: '500' },
 
   baseRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.lg, marginTop: -spacing.xs },
   baseText: { color: colors.textSoft, fontSize: 12 },
@@ -505,9 +448,18 @@ const webStyles = StyleSheet.create({
     maxWidth: layout.content,
     alignSelf: 'center',
   },
-  filterRow: { flexDirection: 'row', gap: spacing.md },
+  // `alignItems: flex-end` alinha o botão pela base dos campos, não pelo topo
+  // — os selects têm rótulo acima e o botão não.
+  filterRow: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', alignItems: 'flex-end' },
   filterCell: { flex: 1, minWidth: 180 },
-  reportActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  filterPeriod: { width: 168 },
+  filterRange: { width: 190 },
+  filterActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingBottom: 1 },
+
+  /** Evolução (larga) e situação (estreita) na mesma linha. */
+  analysisRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.md },
+  analysisWide: { flexGrow: 1, flexBasis: '58%', minWidth: 420, marginBottom: 0 },
+  analysisNarrow: { flexGrow: 1, flexBasis: '38%', minWidth: 360, marginBottom: 0 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
   gridItem: { flexBasis: '48%', flexGrow: 1, minWidth: 320, marginBottom: 0 },
 });
