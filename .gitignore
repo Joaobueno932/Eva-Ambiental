@@ -30,9 +30,11 @@ yarn-error.*
 .DS_Store
 
 # Env
-.env
-.env.local
-.env.*.local
+# O padrão largo pega também as cópias que a gente faz na mão — ".env copy",
+# ".env backup", ".env 2". Uma delas com senha de banco dentro, num repositório
+# com PR aberto, é um vazamento a um `git add .` de distância.
+.env*
+!.env.example
 
 # IDE
 .vscode/
