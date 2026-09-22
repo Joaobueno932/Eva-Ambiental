@@ -16,10 +16,13 @@ const SELECT_FULL = `
 
 export interface WeighingFilters {
   search?: string;
-  startDate?: string; // ISO
-  endDate?: string; // ISO
+  startDate?: string; // ISO — filtra pela data real da pesagem (weighing_date)
+  endDate?: string; // ISO — filtra pela data real da pesagem (weighing_date)
+  clientId?: string;
   unitId?: string;
   wasteTypeId?: string;
+  treatmentTypeId?: string;
+  recipientId?: string;
   /** 'pending' | 'approved' | 'rejected' | 'canceled' */
   approvalStatus?: ApprovalStatus | 'canceled';
   excludeCanceled?: boolean;
@@ -30,8 +33,11 @@ export async function listWeighings(filters: WeighingFilters = {}): Promise<Weig
 
   if (filters.startDate) q = q.gte('weighing_date', filters.startDate);
   if (filters.endDate) q = q.lte('weighing_date', filters.endDate);
+  if (filters.clientId) q = q.eq('client_id', filters.clientId);
   if (filters.unitId) q = q.eq('unit_id', filters.unitId);
   if (filters.wasteTypeId) q = q.eq('waste_type_id', filters.wasteTypeId);
+  if (filters.treatmentTypeId) q = q.eq('treatment_type_id', filters.treatmentTypeId);
+  if (filters.recipientId) q = q.eq('recipient_id', filters.recipientId);
 
   if (filters.approvalStatus === 'canceled') {
     // Mostrar apenas canceladas

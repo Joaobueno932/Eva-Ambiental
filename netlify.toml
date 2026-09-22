@@ -1,0 +1,38 @@
+# Deploy do site Eva Ambiental (Expo Web / react-native-web).
+#
+# As variáveis EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY precisam
+# estar cadastradas em Site settings → Environment variables. Elas são embutidas
+# no bundle durante o build (são públicas por natureza — a proteção dos dados
+# fica por conta das policies de RLS no Supabase).
+
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA: a navegação acontece no cliente, então qualquer rota cai no index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Os bundles têm hash no nome — podem ser cacheados indefinidamente.
+[[headers]]
+  for = "/_expo/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), geolocation=(self)"

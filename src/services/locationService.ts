@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { LocationColumns, LocationDetails } from '@/types';
+import { reverseGeocode } from './reverseGeocode';
 
 /** Solicita permissão de localização (foreground). */
 export async function requestLocationPermission(): Promise<boolean> {
@@ -27,25 +28,14 @@ export async function reverseGeocodeLocation(
   longitude: number
 ): Promise<Partial<LocationDetails>> {
   try {
-    const results = await Location.reverseGeocodeAsync({ latitude, longitude });
-    const a = results?.[0];
-    if (!a) return {};
+    const details = await reverseGeocode(latitude, longitude);
+    if (!details || Object.keys(details).length === 0) return {};
 
-    const details: Partial<LocationDetails> = {
-      placeName: a.name ?? null,
-      street: a.street ?? a.name ?? null,
-      number: a.streetNumber ?? null,
-      neighborhood: a.district ?? a.subregion ?? null,
-      postalCode: a.postalCode ?? null,
-      city: a.city ?? a.subregion ?? null,
-      state: a.region ?? null,
-      country: a.country ?? null,
-    };
-    // Usa o formattedAddress nativo se vier; senão monta com o helper.
-    details.formattedAddress = (a as any).formattedAddress ?? formatAddress(details);
+    // Usa o endereço formatado que o serviço devolveu; senão monta com o helper.
+    details.formattedAddress = details.formattedAddress ?? formatAddress(details);
     // Se não houver nome de local explícito, tenta o melhor campo disponível.
     if (!details.placeName) {
-      details.placeName = a.street ?? a.district ?? a.subregion ?? a.region ?? null;
+      details.placeName = details.street ?? details.neighborhood ?? details.city ?? details.state ?? null;
     }
     return details;
   } catch {

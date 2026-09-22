@@ -55,7 +55,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
+  container: { flex: 1, backgroundColor: colors.pageBg },
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   circle: {
     width: 110,

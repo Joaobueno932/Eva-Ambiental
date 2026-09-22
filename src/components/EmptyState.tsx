@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing } from '@/theme';
+import { colors, radius, spacing } from '@/theme';
 import { EvaImageKey } from '@/theme/images';
 import { EvaImage } from './EvaImage';
 
@@ -21,7 +21,9 @@ export function EmptyState({ icon = 'leaf-outline', eva, title, message, childre
         <EvaImage name={eva} width={150} height={170} style={{ marginBottom: spacing.md }} />
       ) : (
         <View style={styles.circle}>
-          <Ionicons name={icon} size={48} color={colors.green} />
+          <View style={styles.circleInner}>
+            <Ionicons name={icon} size={30} color={colors.brand[600]} />
+          </View>
         </View>
       )}
       <Text style={styles.title}>{title}</Text>
@@ -32,16 +34,28 @@ export function EmptyState({ icon = 'leaf-outline', eva, title, message, childre
 }
 
 const styles = StyleSheet.create({
-  wrapper: { alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
+  wrapper: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl, paddingHorizontal: spacing.lg },
+  // Dois anéis concêntricos: o externo bem claro, o interno com o verde da
+  // marca. Um disco só, do tamanho que o ícone pedia, virava uma bola de cor.
   circle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: colors.greenBg,
+    width: 84,
+    height: 84,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand[50],
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  title: { fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  message: { fontSize: 14, color: colors.grayText, textAlign: 'center', marginTop: spacing.sm, lineHeight: 20 },
+  circleInner: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.greenLine,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { fontSize: 16.5, fontWeight: '700', color: colors.text, textAlign: 'center', letterSpacing: -0.2 },
+  message: { fontSize: 13.5, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm, lineHeight: 20, maxWidth: 420 },
 });

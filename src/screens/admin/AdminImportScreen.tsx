@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Loading } from '@/components';
@@ -127,7 +128,7 @@ export function AdminImportScreen() {
       else if (importType === 'clients') await downloadClientsTemplate();
       else await downloadRecipientsTemplate();
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível gerar o modelo.');
+      showAlert('Erro', e?.message ?? 'Não foi possível gerar o modelo.');
     } finally {
       setDownloadingTemplate(false);
     }
@@ -156,7 +157,7 @@ export function AdminImportScreen() {
     } catch (e: any) {
       setStatus('idle');
       setFileName(null);
-      Alert.alert('Erro ao processar planilha', e?.message ?? 'Verifique se o arquivo é um .xlsx válido.');
+      showAlert('Erro ao processar planilha', e?.message ?? 'Verifique se o arquivo é um .xlsx válido.');
     }
   };
 
@@ -183,7 +184,7 @@ export function AdminImportScreen() {
       setFileName(null);
     } catch (e: any) {
       setStatus('ready');
-      Alert.alert('Erro na importação', e?.message ?? 'Tente novamente.');
+      showAlert('Erro na importação', e?.message ?? 'Tente novamente.');
     }
   };
 
@@ -436,10 +437,10 @@ export function AdminImportScreen() {
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
-  scroll: { padding: spacing.lg },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  hintText: { color: colors.grayText, fontSize: 13, marginBottom: spacing.md, lineHeight: 18 },
+  container: { flex: 1, backgroundColor: colors.pageBg },
+  scroll: { padding: spacing.lg, width: '100%', maxWidth: 860, alignSelf: 'center' },
+  sectionTitle: { fontSize: 15.5, fontWeight: '700', color: colors.text, marginBottom: spacing.md, letterSpacing: -0.2 },
+  hintText: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.md, lineHeight: 19 },
 
   // Tipo
   typeCard: {
@@ -447,59 +448,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
-    backgroundColor: colors.greenBg,
+    backgroundColor: colors.surfaceAlt,
   },
   typeCardActive: {
-    borderColor: colors.green,
-    backgroundColor: '#F0FBE8',
+    borderColor: colors.brand[400],
+    backgroundColor: colors.brand[50],
   },
   typeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.greenBg,
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeIconActive: { backgroundColor: colors.green },
-  typeTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-  typeTitleActive: { color: colors.greenDark },
-  typeDesc: { fontSize: 12, color: colors.grayText, marginTop: 2 },
+  typeIconActive: { backgroundColor: colors.brand[700], borderColor: colors.brand[800] },
+  typeTitle: { fontSize: 14.5, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
+  typeTitleActive: { color: colors.brand[700] },
+  typeDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 
   // Arquivo selecionado
   fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.greenBg,
+    backgroundColor: colors.brand[50],
+    borderWidth: 1,
+    borderColor: colors.greenLine,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  fileName: { flex: 1, fontSize: 13, color: colors.greenDark, fontWeight: '600' },
+  fileName: { flex: 1, fontSize: 13, color: colors.brand[700], fontWeight: '600' },
 
   // Resumo
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray,
+    borderBottomColor: colors.borderSoft,
   },
-  summaryLabel: { fontSize: 13, color: colors.grayText },
+  summaryLabel: { fontSize: 13, color: colors.textMuted },
   summaryValue: { fontSize: 13, fontWeight: '700', color: colors.text },
-  summaryAccent: { color: colors.greenDark },
+  summaryAccent: { color: colors.brand[700] },
 
   // Info box (novos tipos auto-criados)
   infoBox: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.green,
+    borderLeftColor: colors.brand[400],
+    backgroundColor: colors.surfaceAlt,
+    borderTopRightRadius: radius.sm,
+    borderBottomRightRadius: radius.sm,
     paddingLeft: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingRight: spacing.sm,
     marginTop: spacing.md,
   },
   infoTitle: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
@@ -510,45 +520,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.md,
   },
-  blockText: { flex: 1, color: '#991B1B', fontSize: 13, fontWeight: '600' },
+  blockText: { flex: 1, color: colors.danger, fontSize: 13, fontWeight: '600', lineHeight: 18 },
 
   // Faltando (erro crítico)
   missingBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerBg,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: colors.dangerBorder,
   },
   missingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-  missingTitle: { fontSize: 13, fontWeight: '700', color: '#991B1B' },
-  missingItem: { fontSize: 12, color: '#991B1B', paddingVertical: 2 },
+  missingTitle: { fontSize: 13, fontWeight: '700', color: colors.danger },
+  missingItem: { fontSize: 12, color: colors.danger, paddingVertical: 2 },
 
   // Erros de formato
   errorsBox: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: colors.warningBg,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.warningBorder,
   },
-  errorsTitle: { fontSize: 12, fontWeight: '700', color: '#92400E', marginBottom: 4 },
-  errorsItem: { fontSize: 12, color: '#92400E', paddingVertical: 1 },
+  errorsTitle: { fontSize: 12, fontWeight: '700', color: colors.warning, marginBottom: 4 },
+  errorsItem: { fontSize: 12, color: colors.warning, paddingVertical: 1 },
 
   // Done
   doneBox: { alignItems: 'center', paddingVertical: spacing.xl },
-  doneTitle: { fontSize: 20, fontWeight: '800', color: colors.greenDark, marginTop: spacing.md },
-  doneMsg: { color: colors.grayText, fontSize: 14, marginTop: spacing.sm, textAlign: 'center' },
+  doneTitle: { fontSize: 19, fontWeight: '700', color: colors.brand[700], marginTop: spacing.md, letterSpacing: -0.3 },
+  doneMsg: { color: colors.textMuted, fontSize: 13.5, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
 
   // Acesso negado
   denied: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
-  deniedTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginTop: spacing.lg },
-  deniedMsg: { color: colors.grayText, fontSize: 14, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
+  deniedTitle: { fontSize: 19, fontWeight: '700', color: colors.text, marginTop: spacing.lg, letterSpacing: -0.3 },
+  deniedMsg: { color: colors.textMuted, fontSize: 13.5, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
 });

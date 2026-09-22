@@ -62,6 +62,19 @@
       "eas": {
         "projectId": "5f114c14-dc80-49b8-aade-259875355e2a"
       }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Eva Ambiental",
+      "shortName": "Eva Ambiental",
+      "lang": "pt-BR",
+      "description": "Controle e monitoramento de pesagens de resíduos — Eva Ambiental.",
+      "themeColor": "#63B32E",
+      "backgroundColor": "#EEF8E7",
+      "display": "standalone",
+      "orientation": "any"
     }
   }
 }

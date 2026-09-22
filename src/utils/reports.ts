@@ -1,5 +1,6 @@
 import type * as XLSX from 'xlsx';
 import { Weighing } from '@/types';
+import { saveBase64File, savePdfFromHtml, saveTextFile } from './fileSaver';
 import {
   approvalLabel,
   classifyDiversion,
@@ -193,15 +194,12 @@ function buildHtml(ctx: ReportContext): string {
 
 /** Gera o PDF e abre o compartilhamento. */
 export async function generatePdfReport(ctx: ReportContext): Promise<void> {
-  const [Print, Sharing] = await Promise.all([
-    import('expo-print'),
-    import('expo-sharing'),
-  ]);
-  const html = buildHtml(ctx);
-  const { uri } = await Print.printToFileAsync({ html });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Relatório Eva Ambiental' });
-  }
+  const dateStr = new Date().toISOString().slice(0, 10);
+  await savePdfFromHtml(
+    buildHtml(ctx),
+    `eva-ambiental-relatorio-${dateStr}.pdf`,
+    'Relatório Eva Ambiental'
+  );
 }
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────
@@ -217,10 +215,6 @@ function csvRow(cells: unknown[]): string {
 
 /** Gera CSV estruturado (separador ; — compatível com Excel pt-BR) e compartilha. */
 export async function generateCsvReport(ctx: ReportContext): Promise<void> {
-  const [FileSystem, Sharing] = await Promise.all([
-    import('expo-file-system/legacy'),
-    import('expo-sharing'),
-  ]);
   const { stats, weighings, periodLabel } = ctx;
   const cls = classifyDiversion(stats.diversionRate);
   const today = formatDate(new Date().toISOString());
@@ -270,11 +264,7 @@ export async function generateCsvReport(ctx: ReportContext): Promise<void> {
 
   const csv = '﻿' + lines.join('\r\n');
   const dateStr = new Date().toISOString().slice(0, 10);
-  const fileUri = `${FileSystem.cacheDirectory}eva-ambiental-relatorio-${dateStr}.csv`;
-  await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'CSV Eva Ambiental' });
-  }
+  await saveTextFile(csv, `eva-ambiental-relatorio-${dateStr}.csv`, 'text/csv', 'CSV Eva Ambiental');
 }
 
 // ─── EXCEL (.xlsx) ────────────────────────────────────────────────────────────
@@ -528,11 +518,7 @@ function buildDetSheet(ctx: ReportContext, xl: XLSXLib): XLSX.WorkSheet {
  *  • Detalhamento — listagem completa com 25 colunas, AutoFilter e cabeçalho fixo
  */
 export async function generateXlsxReport(ctx: ReportContext): Promise<void> {
-  const [xl, FileSystem, Sharing] = await Promise.all([
-    import('xlsx'),
-    import('expo-file-system/legacy'),
-    import('expo-sharing'),
-  ]);
+  const xl = await import('xlsx');
   const cls = classifyDiversion(ctx.stats.diversionRate);
   const dateStr = new Date().toISOString().slice(0, 10);
 
@@ -542,14 +528,10 @@ export async function generateXlsxReport(ctx: ReportContext): Promise<void> {
   xl.utils.book_append_sheet(wb, buildDetSheet(ctx, xl), 'Detalhamento');
 
   const b64 = xl.write(wb, { type: 'base64', bookType: 'xlsx' });
-  const fileUri = `${FileSystem.cacheDirectory}relatorio-controle-monitoramento-${dateStr}.xlsx`;
-  await FileSystem.writeAsStringAsync(fileUri, b64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      dialogTitle: 'Relatório Excel — Eva Ambiental',
-    });
-  }
+  await saveBase64File(
+    b64,
+    `relatorio-controle-monitoramento-${dateStr}.xlsx`,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Relatório Excel — Eva Ambiental'
+  );
 }

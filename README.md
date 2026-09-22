@@ -1,8 +1,10 @@
 # 🌱 Eva Ambiental
 
-Aplicativo **Android** para **controle, registro, monitoramento e rastreabilidade de pesagens de resíduos**.
+**Site** (e aplicativo **Android**) para **controle, registro, monitoramento e rastreabilidade de pesagens de resíduos**.
 
 Construído com **React Native + Expo + TypeScript** e **Supabase** (Auth, PostgreSQL, Storage) com **Row Level Security** em todas as tabelas.
+
+O mesmo código roda nos dois lugares: no navegador via **Expo Web / react-native-web** (publicado no Netlify) e no celular como APK. As partes que dependem do aparelho — câmera, GPS, download de arquivos — têm uma versão para cada plataforma, em arquivos `.web.ts`.
 
 ---
 
@@ -164,9 +166,10 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
 
 ```bash
 npm install
-npx expo start
+npm run web      # site, em http://localhost:8081
+npx expo start   # aplicativo Android
 ```
-Abra no **Expo Go** (Android) lendo o QR Code, ou pressione `a` para abrir no emulador.
+No site, o navegador abre sozinho. No aplicativo, abra o **Expo Go** (Android) lendo o QR Code, ou pressione `a` para abrir no emulador.
 
 > Dica: se aparecerem avisos de versão de pacotes, rode `npx expo install --fix` para alinhar com a versão do Expo SDK.
 
@@ -198,7 +201,38 @@ npx expo run:android
 
 ---
 
-## 👥 6. Como testar cada perfil
+## 🌐 6. Publicar o site (Netlify)
+
+O `netlify.toml` já traz build, diretório publicado, redirecionamento de SPA e cabeçalhos de cache. Basta conectar o repositório no Netlify — ele lê o arquivo sozinho.
+
+**Único passo manual:** cadastrar as variáveis em *Site settings → Environment variables*, porque o `.env` não vai para o repositório:
+
+| Variável | Valor |
+|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` | a mesma URL do `.env` |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | a mesma publishable key do `.env` |
+
+Sem elas o site sobe, mas abre na tela de "Configuração ausente". As duas são públicas por natureza (ficam embutidas no bundle); quem protege os dados é a RLS do Supabase.
+
+Para gerar o site localmente e conferir antes de publicar:
+
+```bash
+npm run build:web    # gera a pasta dist/
+```
+
+> ⚠️ O redirecionamento `/* → /index.html` no `netlify.toml` é obrigatório. Sem ele, abrir
+> `/pesagens/detalhes/<id>` direto ou recarregar a página devolve 404, porque as rotas
+> existem só no cliente.
+
+**Diferenças no navegador** (o restante é idêntico ao aplicativo):
+
+- **Câmera** — no celular o botão "Tirar foto agora" abre a câmera. No computador ele não aparece: o navegador cairia no seletor de arquivos, e a foto seria registrada como captura sem ser. Sobra o "Anexar imagem".
+- **PDF** — abre a caixa de impressão do navegador, onde se escolhe "Salvar como PDF". Excel, CSV, ZIP e modelos baixam direto.
+- **Endereço da foto** — o navegador só fornece latitude/longitude, então a conversão em endereço usa o **Nominatim (OpenStreetMap)**, um serviço externo. Para desligar, veja `src/services/reverseGeocode.web.ts`.
+
+---
+
+## 👥 7. Como testar cada perfil
 
 Crie um usuário de cada perfil (via área administrativa, com um admin logado) e valide:
 
@@ -248,6 +282,8 @@ autenticados e ativos — respeitando o RLS das pesagens — conseguem visualiza
 
 ```bash
 npm install                              # instala dependências
+npm run web                              # inicia o site em desenvolvimento
+npm run build:web                        # gera o site estático em dist/
 npx expo start                           # inicia o app em desenvolvimento
 npx expo install --fix                   # alinha versões ao Expo SDK
 npm run lint                             # checagem de tipos (tsc --noEmit)

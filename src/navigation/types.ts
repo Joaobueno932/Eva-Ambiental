@@ -20,6 +20,7 @@ export type ProfileStackParamList = {
 
 export type MainTabsParamList = {
   Painel: undefined;
+  Relatorios: undefined;
   Pesagens: NavigatorScreenParams<WeighingsStackParamList>;
   Perfil: NavigatorScreenParams<ProfileStackParamList>;
 };

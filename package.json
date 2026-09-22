@@ -7,9 +7,14 @@
     "android": "expo start --android",
     "prebuild": "expo prebuild",
     "build:apk": "eas build -p android --profile preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "web": "expo start --web",
+    "build:web": "expo export --platform web --output-dir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.0.0",

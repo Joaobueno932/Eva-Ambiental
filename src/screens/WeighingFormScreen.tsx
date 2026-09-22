@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
@@ -16,6 +17,7 @@ import {
   SelectedPhoto,
   SuccessModal,
 } from '@/components';
+import { SectionHeading, Stepper, SummaryLine } from '@/components/Operations';
 import { colors, radius, spacing } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -52,6 +54,8 @@ export function WeighingFormScreen() {
   const canEditRef = useRef(canEditWeighing);
   canEditRef.current = canEditWeighing;
 
+  const [step, setStep] = useState(0);
+  const steps = ['Origem', 'Resíduo', 'Pesagem e tratamento', 'Evidência', 'Revisão'];
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -109,7 +113,7 @@ export function WeighingFormScreen() {
         if (existing) {
           // Usa o ref para não adicionar canEditWeighing como dep e recriar load() a cada render
           if (!canEditRef.current(existing)) {
-            Alert.alert('Sem permissão', 'Você não pode editar esta pesagem.');
+            showAlert('Sem permissão', 'Você não pode editar esta pesagem.');
             navigation.goBack();
             return;
           }
@@ -133,7 +137,7 @@ export function WeighingFormScreen() {
         }
       }
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao carregar dados.');
+      showAlert('Erro', e?.message ?? 'Falha ao carregar dados.');
     } finally {
       setLoading(false);
     }
@@ -169,7 +173,7 @@ export function WeighingFormScreen() {
         selectedUnit.street || selectedUnit.neighborhood || selectedUnit.city ||
         selectedUnit.state || selectedUnit.postal_code || selectedUnit.address;
       if (!hasAddr) {
-        Alert.alert('Sem endereço', 'Esta unidade não possui endereço cadastrado.');
+        showAlert('Sem endereço', 'Esta unidade não possui endereço cadastrado.');
         setUseUnitAddress(false);
         return;
       }
@@ -205,6 +209,9 @@ export function WeighingFormScreen() {
     const dt = dayjs(`${dateStr} ${timeStr}`, 'DD/MM/YYYY HH:mm', true);
     if (!dt.isValid()) e.date = 'Data/hora inválida (DD/MM/AAAA HH:mm).';
     setErrors(e);
+    if (e.clientId || e.unitId || e.date) setStep(0);
+    else if (e.wasteTypeId) setStep(1);
+    else if (e.weight || e.treatmentTypeId || e.peopleCount) setStep(2);
     return Object.keys(e).length === 0;
   };
 
@@ -269,11 +276,27 @@ export function WeighingFormScreen() {
 
       setShowSuccess(true);
     } catch (e: any) {
-      Alert.alert('Erro ao salvar', e?.message ?? 'Tente novamente.');
+      showAlert('Erro ao salvar', e?.message ?? 'Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
+
+  const summary = <>
+    <SectionHeading title="Resumo do registro" description="Confira os dados antes de enviar." />
+    <SummaryLine label="Cliente" value={clients.find(c => c.id === clientId)?.name} />
+    <SummaryLine label="Unidade" value={selectedUnit?.name} />
+    <SummaryLine label="Resíduo" value={wasteTypes.find(w => w.id === wasteTypeId)?.name} />
+    <SummaryLine label="Peso" value={weight ? weight + ' kg' : undefined} />
+    <SummaryLine label="Tratamento" value={treatmentTypes.find(t => t.id === treatmentTypeId)?.name} />
+    <SummaryLine label="Destinatário" value={selectedRecipient?.name} />
+    <SummaryLine label="Data e hora" value={dateStr + ' • ' + timeStr} />
+    <SummaryLine label="Evidência" value={photo ? (photo.imageSource === 'camera' ? 'Foto capturada' : 'Imagem anexada') : isEdit ? 'Nenhuma nova foto (anexos existentes preservados)' : 'Nenhuma foto anexada'} />
+    <SummaryLine label="Localização" value={shortLocationSummary(photo?.location) ?? ([mStreet, mNeighborhood, mCity, mState, mPostal].filter(Boolean).join(', ') || manualLocation)} />
+    <SummaryLine label="Pessoas na unidade" value={peopleCount} />
+    {selectedRecipient?.is_landfill && <SummaryLine label="Poderia desviar do aterro?" value={couldDivert ? 'Sim' : 'Não'} />}
+    <SummaryLine label="Observações" value={notes} />
+  </>;
 
   if (loading) return <Loading message="Carregando formulário..." />;
 
@@ -281,11 +304,13 @@ export function WeighingFormScreen() {
     <View style={styles.container}>
       <Header
         title={isEdit ? 'Editar Pesagem' : 'Nova Pesagem'}
-        subtitle="Preencha os dados da pesagem"
+        subtitle={`Etapa ${step + 1} de 5 • ${steps[step]}`}
         onBack={() => navigation.goBack()}
       />
-      <FormScreenContainer>
-          <Card>
+      <FormScreenContainer aside={summary}>
+          <Stepper steps={steps} current={step} onChange={setStep} />
+          <View style={{ display: step === 0 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="01" title="Origem do registro" description="Identifique o cliente, a unidade e o momento da pesagem." />
             <Select
               label="Cliente"
               options={clients.map((c) => ({ label: c.name, value: c.id }))}
@@ -307,7 +332,13 @@ export function WeighingFormScreen() {
               </View>
             </View>
 
+          </Card></View>
+          <View style={{ display: step === 1 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="02" title="Classificação do resíduo" description="Selecione a categoria correspondente ao material pesado." />
             <Select label="Tipo de resíduo" options={wasteTypes.map((w) => ({ label: w.name, value: w.id }))} value={wasteTypeId} onChange={setWasteTypeId} error={errors.wasteTypeId} />
+          </Card></View>
+          <View style={{ display: step === 2 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="03" title="Pesagem e destinação" description="Informe a massa, o tratamento e o destinatário." />
             <Input
               label="Peso (kg)"
               placeholder="0,00"
@@ -357,10 +388,9 @@ export function WeighingFormScreen() {
               numberOfLines={3}
               style={{ minHeight: 80, textAlignVertical: 'top' }}
             />
-          </Card>
-
-          <Card>
-            <Text style={styles.sectionTitle}>Foto da pesagem</Text>
+          </Card></View>
+          <View style={{ display: step === 3 ? 'flex' : 'none' }}><Card>
+            <SectionHeading number="04" title="Evidência e localização" description="Capture uma foto em campo ou anexe uma imagem da galeria." />
             <PhotoPicker value={photo} onChange={onPhotoChange} />
 
             {/* Campos manuais para upload */}
@@ -440,9 +470,13 @@ export function WeighingFormScreen() {
                 )}
               </View>
             )}
-          </Card>
-
-          <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />
+          </Card></View>
+          {step === 4 && <Card><SectionHeading number="05" title="Revisão antes do envio" description={isEdit ? 'Confira as alterações do registro.' : 'O registro será enviado para validação.'} />{summary}</Card>}
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+            {step > 0 && <Button title="Voltar" variant="outline" fullWidth={false} disabled={saving} onPress={() => setStep(s => s - 1)} />}
+            {step < 4 && <Button title={step === 3 ? 'Revisar registro' : 'Continuar'} icon="arrow-forward" style={{ flex: 1 }} onPress={() => setStep(s => s + 1)} />}
+          </View>
+          {step === 4 && <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />}
       </FormScreenContainer>
 
       <SuccessModal
@@ -463,21 +497,31 @@ export function WeighingFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.greenBg },
+  container: { flex: 1, backgroundColor: colors.pageBg },
   row: { flexDirection: 'row', gap: spacing.md },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  uploadFields: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
-  uploadHint: { color: colors.greenDark, fontSize: 13, marginBottom: spacing.md },
-  gpsInfo: { marginTop: spacing.md, backgroundColor: colors.greenBg, borderRadius: radius.md, padding: spacing.md },
-  gpsText: { color: colors.greenDark, fontSize: 13 },
-  gpsCoords: { color: colors.grayText, fontSize: 12, marginTop: 4 },
+  sectionTitle: { fontSize: 15.5, fontWeight: '700', color: colors.text, marginBottom: spacing.md, letterSpacing: -0.2 },
+  uploadFields: {
+    marginTop: spacing.md, backgroundColor: colors.brand[50],
+    borderWidth: 1, borderColor: colors.greenLine,
+    borderRadius: radius.md, padding: spacing.md,
+  },
+  uploadHint: { color: colors.brand[600], fontSize: 12.5, marginBottom: spacing.md, lineHeight: 18 },
+  gpsInfo: {
+    marginTop: spacing.md, backgroundColor: colors.brand[50],
+    borderWidth: 1, borderColor: colors.greenLine,
+    borderRadius: radius.md, padding: spacing.md,
+  },
+  gpsText: { color: colors.brand[700], fontSize: 13, fontWeight: '500' },
+  gpsCoords: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
     borderRadius: radius.md,
-    padding: spacing.md,
+    padding: spacing.md + 2,
     marginBottom: spacing.md,
     gap: spacing.md,
   },
@@ -485,14 +529,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.greenBg,
+    backgroundColor: colors.brand[50],
     borderRadius: radius.md,
-    padding: spacing.md,
+    padding: spacing.md + 2,
     marginTop: spacing.md,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: colors.grayMedium,
+    borderColor: colors.greenLine,
   },
-  switchLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
-  switchHint: { color: colors.grayText, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  switchLabel: { fontSize: 14.5, fontWeight: '600', color: colors.text },
+  switchHint: { color: colors.textMuted, fontSize: 12, marginTop: 3, lineHeight: 17 },
 });

@@ -5,18 +5,13 @@
  * IMPORTANTE: xlsx é importado dinamicamente dentro de cada função para evitar que
  * o módulo execute código de inicialização durante a inicialização do app Android.
  */
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { saveBase64File } from './fileSaver';
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Entrega o modelo ao usuário: compartilhamento no app, download no navegador. */
 async function shareFile(b64: string, fileName: string, dialogTitle: string): Promise<void> {
-  const uri = `${FileSystem.cacheDirectory}${fileName}`;
-  await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      dialogTitle,
-    });
-  }
+  await saveBase64File(b64, fileName, XLSX_MIME, dialogTitle);
 }
 
 /**

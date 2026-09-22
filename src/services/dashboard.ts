@@ -1,10 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import { DashboardStats, Weighing } from '@/types';
 import { colors } from '@/theme/colors';
+import { treatmentCountsAsDiversion } from '@/utils/format';
 
 export interface DashboardRange {
   startDate?: string;
   endDate?: string;
+  clientId?: string;
+  unitId?: string;
 }
 
 /**
@@ -25,6 +28,8 @@ export async function getDashboardStats(range: DashboardRange = {}): Promise<Das
 
   if (range.startDate) q = q.gte('weighing_date', range.startDate);
   if (range.endDate) q = q.lte('weighing_date', range.endDate);
+  if (range.clientId) q = q.eq('client_id', range.clientId);
+  if (range.unitId) q = q.eq('unit_id', range.unitId);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -34,9 +39,12 @@ export async function getDashboardStats(range: DashboardRange = {}): Promise<Das
   const totalWeighings = rows.length;
   const totalWeight = rows.reduce((acc, w) => acc + Number(w.weight_kg ?? 0), 0);
 
-  // Taxa de desvio de aterro: peso desviado / peso total * 100
+  // Taxa de desvio de aterro: peso desviado / peso total * 100.
+  // Conta como desvio apenas os tratamentos marcados como counts_as_diversion
+  // (com fallback por nome normalizado para Reciclável, Reciclável (Latinhas),
+  // Reaproveitamento e Logística Reversa). Se o peso total for zero, retorna 0%.
   const diverted = rows
-    .filter((w) => w.treatment_type?.counts_as_diversion)
+    .filter((w) => treatmentCountsAsDiversion(w.treatment_type))
     .reduce((acc, w) => acc + Number(w.weight_kg ?? 0), 0);
   const diversionRate = totalWeight > 0 ? (diverted / totalWeight) * 100 : 0;
 

@@ -2,8 +2,7 @@
  * Serviço de importação de dados via planilha Excel (.xlsx).
  * Admin-only: verificação por `usePermissions` na tela + assertAdmin() em cada execute.
  */
-import * as FileSystem from 'expo-file-system/legacy';
-import * as DocumentPicker from 'expo-document-picker';
+import { pickXlsxFile, readFileBase64 } from './spreadsheetFile';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { supabase } from '@/lib/supabase';
@@ -48,9 +47,7 @@ function parseBool(s: unknown): boolean | null {
 /** Lê um arquivo .xlsx e retorna as linhas como array de strings (sem linhas vazias). */
 async function readXlsxRows(uri: string): Promise<string[][]> {
   const XLSX = await import('xlsx');
-  const content = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const content = await readFileBase64(uri);
   const wb = XLSX.read(content, { type: 'base64' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<string[]>(ws, {
@@ -78,17 +75,8 @@ async function assertAdmin(): Promise<void> {
   }
 }
 
-/** Abre o seletor de arquivo e retorna URI + nome. Retorna null se cancelado. */
-export async function pickXlsxFile(): Promise<{ uri: string; name: string } | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    copyToCacheDirectory: true,
-  });
-  if (result.canceled) return null;
-  const asset = result.assets?.[0];
-  if (!asset) return null;
-  return { uri: asset.uri, name: asset.name ?? 'arquivo.xlsx' };
-}
+// Reexportado para que as telas continuem importando tudo de "@/services/imports".
+export { pickXlsxFile };
 
 // ─── IMPORTAÇÃO DE PESAGENS ────────────────────────────────────────────────────
 // Colunas da planilha: Data | Cliente | Unidade | Destinatário | Tipo de Resíduo
