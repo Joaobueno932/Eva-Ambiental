@@ -9,6 +9,11 @@
 -- Rodar duas vezes não faz diferença: todos os comandos são
 -- idempotentes (`add column if not exists`, `create or replace`,
 -- `drop ... if exists`), então o que já existe é deixado como está.
+-- Nenhum comando apaga coluna, tabela ou linha.
+--
+-- No fim há uma conferência: ela lista cada coluna e função
+-- esperada com "ok" ou "FALTANDO", e a contagem de linhas de cada
+-- tabela.
 --
 -- Este arquivo é uma conveniência: a fonte continua sendo cada
 -- migração numerada em supabase/migrations/. Gerado a partir delas.
@@ -756,13 +761,14 @@ grant execute on function public.admin_list_users() to authenticated;
 -- =============================================================
 -- Conferência — é o resultado que aparece na tela depois de rodar
 -- =============================================================
--- Três blocos numa tabela só:
---   coluna  → cada coluna esperada, com "ok" ou "FALTANDO"
---   funcao  → cada função esperada, com "ok" ou "FALTANDO"
---   linhas  → quantas linhas cada tabela tem agora
+-- Quatro blocos numa tabela só:
+--   coluna     → cada coluna esperada, com "ok" ou "FALTANDO"
+--   funcao     → cada função esperada, do mesmo jeito
+--   sequencia  → a sequência do número da pesagem (migração 0006)
+--   linhas     → quantas linhas cada tabela tem agora
 --
--- O terceiro bloco é a prova de que nada foi perdido: compare com
--- o que você sabe do banco. Nenhum comando acima apaga linha.
+-- O último bloco é a prova de que nada foi perdido: compare com o
+-- que você sabe do banco. Nenhum comando acima apaga linha.
 
 with esperado_coluna(tabela, coluna) as (
   values
@@ -822,7 +828,7 @@ with esperado_coluna(tabela, coluna) as (
       ('recipients','notes'),
       ('recipients','updated_at')
 ),
-esperada_funcao(nome) as (values ('admin_list_users'), ('unit_weighing_stats'), ('treatment_usage_stats'), ('waste_usage_stats'), ('recipient_usage_stats'), ('sync_recipient_active'), ('next_weighing_seq'), ('set_weighing_seq'))
+esperada_funcao(nome) as (values ('admin_list_users'), ('unit_weighing_stats'), ('treatment_usage_stats'), ('waste_usage_stats'), ('recipient_usage_stats'), ('sync_recipient_active'))
 select 'coluna' as tipo,
        e.tabela || '.' || e.coluna as item,
        case when c.column_name is null then 'FALTANDO' else 'ok' end as situacao
@@ -837,6 +843,12 @@ select 'funcao',
   left join pg_proc p
     on p.proname = f.nome
    and p.pronamespace = 'public'::regnamespace
+union all
+select 'sequencia',
+       s.nome,
+       case when c.relname is null then 'FALTANDO' else 'ok' end
+  from (values ('weighings_seq_seq')) as s(nome)
+  left join pg_class c on c.relname = s.nome and c.relkind = 'S'
 union all
 select 'linhas' as tipo, 'profiles' as item, count(*)::text as situacao from public.profiles
   union all select 'linhas' as tipo, 'clients' as item, count(*)::text as situacao from public.clients
