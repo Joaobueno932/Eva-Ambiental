@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '@/theme';
 import { ApprovalStatus } from '@/types';
-import { approvalLabel } from '@/utils/format';
+import { approvalBadgeLabel } from '@/utils/format';
 
 /**
  * Cada situação tem fundo, traço e ponto próprios.
@@ -17,12 +17,17 @@ const map: Record<ApprovalStatus, { bg: string; text: string; border: string }> 
   rejected: { bg: colors.dangerBg, text: colors.danger, border: colors.dangerBorder },
 };
 
-export function StatusBadge({ status, large }: { status: ApprovalStatus; large?: boolean }) {
+export function StatusBadge({ status, large, small }: {
+  status: ApprovalStatus;
+  large?: boolean;
+  /** Pílula das prévias em meia largura, onde "Aguardando validação" precisa caber inteira. */
+  small?: boolean;
+}) {
   const c = map[status] ?? map.pending;
   return (
-    <View style={[styles.badge, { backgroundColor: c.bg, borderColor: c.border }, large && styles.large]}>
-      <View style={[styles.dot, { backgroundColor: c.text }, large && styles.dotLarge]} />
-      <Text style={[styles.text, { color: c.text }, large && styles.textLarge]}>{approvalLabel[status]}</Text>
+    <View style={[styles.badge, { backgroundColor: c.bg, borderColor: c.border }, large && styles.large, small && styles.small]}>
+      <View style={[styles.dot, { backgroundColor: c.text }, large && styles.dotLarge, small && styles.dotSmall]} />
+      <Text style={[styles.text, { color: c.text }, large && styles.textLarge, small && styles.textSmall]} numberOfLines={1}>{approvalBadgeLabel[status]}</Text>
     </View>
   );
 }
@@ -66,4 +71,7 @@ const styles = StyleSheet.create({
   dotLarge: { width: 7, height: 7, borderRadius: 3.5 },
   text: { fontSize: 11.5, fontWeight: '700', letterSpacing: 0.2 },
   textLarge: { fontSize: 13.5 },
+  small: { paddingHorizontal: 7, paddingVertical: 3, gap: 5 },
+  dotSmall: { width: 5, height: 5, borderRadius: 2.5 },
+  textSmall: { fontSize: 10.5, fontWeight: '600', letterSpacing: 0 },
 });

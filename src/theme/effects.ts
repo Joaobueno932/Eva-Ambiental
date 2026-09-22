@@ -60,7 +60,6 @@ export const gradients = {
   brand: `linear-gradient(180deg, ${colors.brand[600]} 0%, ${colors.brand[700]} 100%)`,
   brandHover: `linear-gradient(180deg, ${colors.brand[500]} 0%, ${colors.brand[600]} 100%)`,
   /** Menu lateral: escurece de cima para baixo, com um véu verde no topo. */
-  sidebar: `linear-gradient(180deg, ${colors.brand[800]} 0%, ${colors.brand[900]} 55%, #071712 100%)`,
   /** Cartões: branco com um sopro de verde na base, tira o ar de folha em branco. */
   surface: 'linear-gradient(180deg, #FFFFFF 0%, #FBFDFC 100%)',
   /** Faixa de indicadores. */

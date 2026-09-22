@@ -12,6 +12,8 @@ interface Props {
   right?: React.ReactNode;
   /** Trilha de contexto acima do título, no site (ex.: "Pesagens"). */
   eyebrow?: string;
+  /** Marca da seção à esquerda do título, no site. Não aparece com `onBack`. */
+  icon?: keyof typeof Ionicons.glyphMap;
 }
 
 /**
@@ -21,7 +23,7 @@ interface Props {
  * fundo próprio e sombra curta, para continuar legível quando a página rola
  * por baixo. No celular mantém o bloco verde da marca, agora em degradê.
  */
-export function Header({ title, subtitle, onBack, right, eyebrow }: Props) {
+export function Header({ title, subtitle, onBack, right, eyebrow, icon }: Props) {
   const insets = useSafeAreaInsets();
   const isDesktop = useIsDesktop();
 
@@ -37,6 +39,13 @@ export function Header({ title, subtitle, onBack, right, eyebrow }: Props) {
           >
             <Ionicons name="arrow-back" size={18} color={colors.textMuted} />
           </Pressable>
+        ) : null}
+        {/* Marca da seção — só quando não há retorno, para não competir com
+            a seta de voltar no mesmo canto. */}
+        {icon && !onBack ? (
+          <View style={[webStyles.mark, gradient(gradients.brand, colors.brand[700])]}>
+            <Ionicons name={icon} size={20} color={colors.accent} />
+          </View>
         ) : null}
         <View style={styles.flex}>
           {eyebrow ? <Text style={webStyles.eyebrow} numberOfLines={1}>{eyebrow}</Text> : null}
@@ -147,6 +156,14 @@ const webStyles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
     marginBottom: 3,
+  },
+  mark: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    backgroundColor: colors.brand[700],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: { color: colors.text, ...typography.h1, fontSize: 23 },
   subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 3 },

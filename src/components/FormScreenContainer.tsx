@@ -10,6 +10,8 @@ interface Props {
   children: React.ReactNode;
   aside?: React.ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Estilo da coluna central — permite abrir mão do limite de 760px. */
+  columnStyle?: StyleProp<ViewStyle>;
   /** centraliza o conteúdo verticalmente (ex.: tela de Login) */
   center?: boolean;
   /** compensação quando há cabeçalho fixo acima (geralmente 0) */
@@ -30,6 +32,7 @@ export function FormScreenContainer({
   children,
   aside,
   contentContainerStyle,
+  columnStyle,
   center,
   keyboardVerticalOffset = 0,
   edges = ['bottom'],
@@ -52,7 +55,7 @@ export function FormScreenContainer({
         >
           {/* No monitor o formulário não deve ocupar a tela inteira: campos de
               1000px de largura são desconfortáveis de ler e preencher. */}
-          <View style={styles.column}>{children}</View>
+          <View style={[styles.column, columnStyle]}>{children}</View>
         </ScrollView>
         {isDesktop && aside && <ScrollView style={{ width: 280, flexGrow: 0, borderLeftWidth: 1, borderLeftColor: colors.border }} contentContainerStyle={{ padding: spacing.lg }}>{aside}</ScrollView>}
         </View>

@@ -31,8 +31,30 @@ export interface MetricItem {
   value: string;
   hint?: string;
   icon?: keyof typeof Ionicons.glyphMap;
-  /** Cor do valor e do ícone. Por padrão, o verde da marca. */
+  /** Cor do ícone e do seu fundo. Por padrão, o verde da marca. */
   tone?: string;
+  /** Cor do número. Por padrão a cor do texto — só destoa quando o valor alerta. */
+  valueTone?: string;
+  /**
+   * Tamanho do valor. O padrão de 28px é calibrado para números; um indicador
+   * cujo valor é um nome ("Reciclagem") pede menos, senão ele empurra a nota
+   * de comparação para fora do cartão.
+   */
+  valueSize?: number;
+  /** Variação já formatada, ex.: "+12%" ou "−6,2 p.p.". */
+  delta?: string;
+  /** Direção da variação: decide seta e cor. `flat` não tem seta. */
+  deltaDirection?: 'up' | 'down' | 'flat';
+  /** Se subir é ruim (fila de validação crescendo), inverte as cores. */
+  invertDelta?: boolean;
+  /** Contra o que a variação é medida, ex.: "vs. mês anterior". */
+  deltaLabel?: string;
+  /**
+   * Cor da variação, para o caso em que ela não é variação nenhuma: uma fatia
+   * do total que merece alarme ("21% dos tipos são perigosos") não tem seta
+   * nem sentido de subida, mas tem cor.
+   */
+  deltaTone?: string;
 }
 
 /**
@@ -40,13 +62,25 @@ export interface MetricItem {
  *
  * Eram quatro células separadas por linhas dentro de uma caixa única — o
  * resultado parecia uma tabela sem cabeçalho. Agora cada indicador é um cartão
- * com hierarquia própria: rótulo pequeno em caixa alta, número grande, nota de
- * escopo embaixo e um ícone que dá reconhecimento imediato.
+ * com hierarquia própria: ícone à esquerda para reconhecimento imediato,
+ * rótulo, número grande e a variação contra o período anterior.
+ *
+ * A variação é o que transforma o número em informação: "28 pesagens" não diz
+ * se o mês foi bom, "28, +12% vs. mês anterior" diz.
  */
 export function MetricStrip({ items }: { items: MetricItem[] }) {
   const isDesktop = useIsDesktop();
   return <View style={s.metrics}>{items.map(item => {
     const tone = item.tone ?? colors.brand[700];
+    const direction = item.deltaDirection ?? 'flat';
+    // Verde e vermelho seguem o sentido do indicador, não o sinal do número:
+    // uma fila de validação que cresce não é uma boa notícia em verde.
+    const good = item.invertDelta ? direction === 'down' : direction === 'up';
+    const deltaColor = item.deltaTone
+      ?? (direction === 'flat'
+        ? colors.textSoft
+        : good ? colors.success : colors.danger);
+
     return <View
       key={item.label}
       style={[
@@ -57,16 +91,39 @@ export function MetricStrip({ items }: { items: MetricItem[] }) {
         transition(),
       ]}
     >
-      <View style={s.metricTop}>
-        <Text style={s.label} numberOfLines={2}>{item.label}</Text>
+      <View style={s.metricRow}>
         {item.icon ? <View style={[s.metricIcon, { backgroundColor: tone + '14' }]}>
-          <Ionicons name={item.icon} size={15} color={tone} />
+          <Ionicons name={item.icon} size={19} color={tone} />
         </View> : null}
+        <View style={s.grow}>
+          <Text style={s.label} numberOfLines={2}>{item.label}</Text>
+          <View style={s.valueRow}>
+            <Text
+              style={[
+                s.value,
+                item.valueTone ? { color: item.valueTone } : null,
+                isDesktop ? null : s.valueMobile,
+                item.valueSize ? { fontSize: item.valueSize } : null,
+              ]}
+              numberOfLines={1}
+            >
+              {item.value}
+            </Text>
+            {item.delta ? <View style={s.delta}>
+              <View style={s.deltaTop}>
+                {direction !== 'flat' ? <Ionicons
+                  name={direction === 'up' ? 'arrow-up' : 'arrow-down'}
+                  size={12}
+                  color={deltaColor}
+                /> : null}
+                <Text style={[s.deltaText, { color: deltaColor }]}>{item.delta}</Text>
+              </View>
+              {item.deltaLabel ? <Text style={s.deltaLabel}>{item.deltaLabel}</Text> : null}
+            </View> : null}
+          </View>
+          {item.hint ? <Text style={s.metricHint}>{item.hint}</Text> : null}
+        </View>
       </View>
-      <Text style={[s.value, { color: tone }, isDesktop ? null : s.valueMobile]} numberOfLines={1}>
-        {item.value}
-      </Text>
-      {item.hint ? <Text style={s.metricHint}>{item.hint}</Text> : null}
     </View>;
   })}</View>;
 }
@@ -139,16 +196,27 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
     backgroundColor: colors.surface, justifyContent: 'space-between',
   },
-  metricDesktop: { flexGrow: 1, flexBasis: '22%', minWidth: 196, padding: spacing.lg + 2 },
-  metricMobile: { flexGrow: 1, flexBasis: '44%', minWidth: 148, padding: spacing.md + 2 },
-  metricTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  metricIcon: { width: 28, height: 28, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  label: {
-    flex: 1, color: colors.textMuted, fontSize: 11, fontWeight: '700',
-    letterSpacing: 0.6, textTransform: 'uppercase', lineHeight: 15,
+  // 208px é o mínimo que mantém quatro indicadores numa linha quando um
+  // painel lateral divide a tela; acima disso o quarto cartão desce.
+  metricDesktop: { flexGrow: 1, flexBasis: '22%', minWidth: 208, padding: spacing.lg + 2 },
+  metricMobile: { flexGrow: 1, flexBasis: '100%', minWidth: 180, padding: spacing.md + 2 },
+  metricRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  metricIcon: {
+    width: 38, height: 38, borderRadius: radius.md,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  value: { ...typography.metric, color: colors.brand[700], marginTop: spacing.sm },
-  valueMobile: { fontSize: 24, letterSpacing: -0.6 },
+  label: { color: colors.textMuted, fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  // O número e a variação dividem a linha; com pouca largura a variação desce.
+  valueRow: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap', gap: spacing.sm, marginTop: 2 },
+  // 28px em vez dos 32px do `typography.metric`: com quatro cartões numa linha
+  // o número maior empurrava "vs. mês anterior" para baixo.
+  value: { ...typography.metric, fontSize: 28, letterSpacing: -0.8, color: colors.text },
+  valueMobile: { fontSize: 26, letterSpacing: -0.7 },
+  // A nota de comparação quebra em duas linhas antes de derrubar o bloco todo.
+  delta: { paddingBottom: 4, maxWidth: 96 },
+  deltaTop: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  deltaText: { fontSize: 12.5, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  deltaLabel: { color: colors.textSoft, fontSize: 10.5, marginTop: 1, lineHeight: 13 },
   metricHint: { color: colors.textSoft, fontSize: 11.5, marginTop: 4, lineHeight: 16 },
 
   steps: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.xl },

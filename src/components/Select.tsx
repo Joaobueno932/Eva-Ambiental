@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, elevation, radius, ring, spacing, transition } from '@/theme';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { formStyles } from './Input';
 
 export interface SelectOption {
   label: string;
@@ -18,9 +19,20 @@ interface Props {
   onChange: (value: string) => void;
   error?: string;
   disabled?: boolean;
+  /** `form`: o mesmo campo alto de rótulo escuro do `Input` nos formulários de registro. */
+  size?: 'md' | 'form';
+  /** Asterisco vermelho depois do rótulo. */
+  required?: boolean;
+  /** Ícone preenchido à esquerda do valor — diz do que é o filtro sem ler o rótulo. */
+  leftIcon?: keyof typeof Ionicons.glyphMap;
+  /** Cor do ícone — por padrão o verde escuro dos ícones de formulário. */
+  leftIconColor?: string;
+  /** Ícone de traço (ex.: Lucide) no lugar do glifo do Ionicons. */
+  leftIconComponent?: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
-export function Select({ label, placeholder = 'Selecione...', value, options, onChange, error, disabled }: Props) {
+export function Select({ label, placeholder = 'Selecione...', value, options, onChange, error, disabled, size = 'md', required, leftIcon, leftIconColor, leftIconComponent: LeftIcon }: Props) {
+  const isForm = size === 'form';
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const isDesktop = useIsDesktop();
@@ -31,8 +43,13 @@ export function Select({ label, placeholder = 'Selecione...', value, options, on
   const listMaxHeight = screenHeight * 0.6 - Math.max(insets.bottom, spacing.lg) - 60;
 
   return (
-    <View style={styles.wrapper}>
-      {label && <Text style={isDesktop ? webStyles.label : styles.label}>{label}</Text>}
+    <View style={isForm ? formStyles.wrapper : styles.wrapper}>
+      {label && (
+        <Text style={isForm ? formStyles.label : isDesktop ? webStyles.label : styles.label}>
+          {label}
+          {required ? <Text style={formStyles.required}>{'  *'}</Text> : null}
+        </Text>
+      )}
       <Pressable
         disabled={disabled}
         onPress={() => setOpen(true)}
@@ -41,6 +58,7 @@ export function Select({ label, placeholder = 'Selecione...', value, options, on
         accessibilityState={{ disabled, expanded: open }}
         style={({ hovered }: any) => [
           isDesktop ? webStyles.field : styles.field,
+          isForm && formField.field,
           transition('background-color, border-color, box-shadow'),
           isDesktop && hovered && !disabled && { borderColor: colors.borderStrong, backgroundColor: colors.white },
           open && !disabled && [{ borderColor: colors.brand[500], backgroundColor: colors.white }, ring(colors.brand[500])],
@@ -48,16 +66,27 @@ export function Select({ label, placeholder = 'Selecione...', value, options, on
           disabled && styles.fieldDisabled,
         ]}
       >
+        {LeftIcon ? (
+          <View style={{ marginRight: 10 }}>
+            <LeftIcon size={18} strokeWidth={2} color={leftIconColor ?? colors.form.tileIcon} />
+          </View>
+        ) : leftIcon ? (
+          <Ionicons name={leftIcon} size={16} color={leftIconColor ?? colors.form.tileIcon} style={{ marginRight: 10 }} />
+        ) : null}
         <Text
-          style={[isDesktop ? webStyles.value : styles.value, !selected && { color: colors.textSoft }]}
+          style={[
+            isDesktop ? webStyles.value : styles.value,
+            isForm && formField.value,
+            !selected && { color: isForm ? colors.form.soft : colors.textSoft },
+          ]}
           numberOfLines={1}
         >
           {selected ? selected.label : placeholder}
         </Text>
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
-          size={isDesktop ? 15 : 20}
-          color={open ? colors.brand[600] : colors.textSoft}
+          size={isForm ? 18 : isDesktop ? 15 : 20}
+          color={open ? colors.brand[600] : isForm ? colors.form.label : colors.textSoft}
         />
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -205,4 +234,18 @@ const webStyles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   optionText: { fontSize: 14, color: colors.text },
+});
+
+/** Campo do tamanho `form`: mesma caixa do `Input` equivalente. */
+const formField = StyleSheet.create({
+  field: {
+    backgroundColor: colors.form.fieldBg,
+    borderWidth: 1,
+    borderColor: colors.form.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    minHeight: 50,
+    height: 50,
+  },
+  value: { fontSize: 16, color: colors.form.label },
 });

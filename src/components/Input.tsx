@@ -17,7 +17,14 @@ interface Props extends TextInputProps {
    * alto no celular). `lg` mantém o campo alto em qualquer tela — usado onde o
    * formulário é o próprio assunto da página, como no acesso.
    */
-  size?: 'md' | 'lg';
+  size?: 'md' | 'lg' | 'form';
+  /**
+   * Ícone de traço à esquerda (ex.: Lucide), no lugar do glifo do Ionicons.
+   * Usado pelo tamanho `form`, que segue a família de ícones do menu.
+   */
+  leftIconComponent?: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  /** Marca o campo como obrigatório: asterisco vermelho depois do rótulo. */
+  required?: boolean;
 }
 
 /**
@@ -35,6 +42,8 @@ export function Input({
   style,
   isPassword,
   leftIcon,
+  leftIconComponent: LeftIcon,
+  required,
   size = 'md',
   secureTextEntry,
   onFocus,
@@ -48,15 +57,31 @@ export function Input({
   // Quando isPassword, a senha começa oculta e o olho alterna a visibilidade.
   const secure = isPassword ? !visible : secureTextEntry;
   // `tall` é o campo de toque: no celular sempre, no site só quando pedido.
+  const isForm = size === 'form';
   const tall = size === 'lg' || !isDesktop;
   const eyeSize = tall ? 52 : 38;
-  const iconGutter = tall ? 46 : 34;
+  const iconGutter = isForm ? 54 : tall ? 46 : 34;
+  const hasIcon = !!(leftIcon || LeftIcon);
 
   return (
-    <View style={styles.wrapper}>
-      {label && <Text style={tall ? styles.label : webStyles.label}>{label}</Text>}
+    <View style={isForm ? formStyles.wrapper : styles.wrapper}>
+      {label && (
+        <Text style={isForm ? formStyles.label : tall ? styles.label : webStyles.label}>
+          {label}
+          {required ? <Text style={formStyles.required}>{'  *'}</Text> : null}
+        </Text>
+      )}
 
       <View style={styles.fieldRow}>
+        {LeftIcon && (
+          <View style={[styles.leftIcon, { width: iconGutter }]} pointerEvents="none">
+            <LeftIcon
+              size={20}
+              strokeWidth={2}
+              color={error ? colors.danger : focused ? colors.brand[500] : colors.form.label}
+            />
+          </View>
+        )}
         {leftIcon && (
           <View style={[styles.leftIcon, { width: iconGutter }]} pointerEvents="none">
             <Ionicons
@@ -68,7 +93,7 @@ export function Input({
         )}
         <TextInput
           accessibilityLabel={label ?? rest.placeholder}
-          placeholderTextColor={colors.textSoft}
+          placeholderTextColor={isForm ? colors.form.soft : colors.textSoft}
           secureTextEntry={secure}
           onFocus={(e) => {
             setFocused(true);
@@ -79,12 +104,12 @@ export function Input({
             onBlur?.(e);
           }}
           style={[
-            tall ? styles.input : webStyles.input,
+            isForm ? formStyles.input : tall ? styles.input : webStyles.input,
             isDesktop && webOnly.noOutline,
             transition('background-color, border-color, box-shadow'),
             isPassword && { paddingRight: eyeSize },
-            leftIcon && { paddingLeft: iconGutter },
-            focused && (tall ? styles.inputFocused : webStyles.inputFocused),
+            hasIcon && { paddingLeft: iconGutter },
+            focused && (isForm ? formStyles.inputFocused : tall ? styles.inputFocused : webStyles.inputFocused),
             focused && isDesktop && ring(colors.brand[500]),
             error ? styles.inputError : null,
             error && focused ? ring(colors.danger) : null,
@@ -185,6 +210,29 @@ const webStyles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     minHeight: 40,
+  },
+  inputFocused: { borderColor: colors.brand[500], backgroundColor: colors.white },
+});
+
+/**
+ * Tamanho `form`: formulários de registro, medidos no desenho de referência.
+ *
+ * Rótulo em 16px e escuro — no formulário o rótulo é a pergunta, não uma
+ * legenda —, campo de 50px com borda fina e fundo quase branco.
+ */
+export const formStyles = StyleSheet.create({
+  wrapper: { marginBottom: 22 },
+  label: { fontSize: 16, fontWeight: '500', color: colors.form.label, marginBottom: 9 },
+  required: { color: colors.form.required, fontWeight: '600' },
+  input: {
+    backgroundColor: colors.form.fieldBg,
+    borderWidth: 1,
+    borderColor: colors.form.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: colors.form.label,
+    height: 50,
   },
   inputFocused: { borderColor: colors.brand[500], backgroundColor: colors.white },
 });

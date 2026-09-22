@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, elevation, gradient, gradients, radius, spacing, transition } from '@/theme';
 import { useIsDesktop } from '@/hooks/useLayout';
 
-type Variant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'cta' | 'deep' | 'outline' | 'dangerOutline' | 'danger' | 'ghost';
 
 interface Props {
   title: string;
@@ -15,6 +15,15 @@ interface Props {
   icon?: keyof typeof Ionicons.glyphMap;
   style?: ViewStyle;
   fullWidth?: boolean;
+  /**
+   * `lg`: botão alto (58px) em qualquer tela — a ação que conclui uma etapa
+   * de formulário, onde o botão é o destino do olhar e não um item de barra.
+   */
+  size?: 'md' | 'lg';
+  /** Ícone de traço (ex.: Lucide) no lugar do glifo do Ionicons. */
+  iconComponent?: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  /** Ícone depois do texto — setas que indicam para onde o botão leva. */
+  iconRight?: boolean;
 }
 
 /**
@@ -38,7 +47,11 @@ export function Button({
   icon,
   style,
   fullWidth = true,
+  size = 'md',
+  iconComponent: IconComponent,
+  iconRight,
 }: Props) {
+  const large = size === 'lg';
   const isDisabled = disabled || loading;
   const isDesktop = useIsDesktop();
   const palette = getPalette(variant);
@@ -52,6 +65,7 @@ export function Button({
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={({ pressed, hovered }: any) => [
         isDesktop ? webStyles.base : styles.base,
+        large && lgStyles.base,
         { backgroundColor: palette.bg, borderColor: palette.border },
         palette.fill && !isDisabled && gradient(palette.fill, palette.bg),
         palette.raised && !isDisabled && elevation('sm'),
@@ -70,8 +84,13 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={palette.text} size="small" />
       ) : (
-        <View style={styles.content}>
-          {icon && (
+        <View style={[styles.content, iconRight && { flexDirection: 'row-reverse' }]}>
+          {IconComponent && (
+            <View style={iconRight ? { marginLeft: large ? 12 : spacing.sm } : { marginRight: large ? 12 : spacing.sm }}>
+              <IconComponent size={large ? 22 : 18} strokeWidth={2.25} color={palette.text} />
+            </View>
+          )}
+          {icon && !IconComponent && (
             <Ionicons
               name={icon}
               size={isDesktop ? 16 : 20}
@@ -79,7 +98,7 @@ export function Button({
               style={{ marginRight: isDesktop ? spacing.xs + 2 : spacing.sm }}
             />
           )}
-          <Text style={[isDesktop ? webStyles.text : styles.text, { color: palette.text }]}>{title}</Text>
+          <Text style={[isDesktop ? webStyles.text : styles.text, large && lgStyles.text, { color: palette.text }]}>{title}</Text>
         </View>
       )}
     </Pressable>
@@ -101,6 +120,29 @@ interface Palette {
 
 function getPalette(v: Variant): Palette {
   switch (v) {
+    // Chamada para ação: verde claro com texto quase preto. O contraste vem do
+    // texto escuro sobre fundo claro, e não de branco sobre verde médio — que
+    // nesta faixa de luminosidade não alcançaria a relação mínima.
+    // Ação principal de formulário: o verde fechado do desenho, chapado.
+    case 'deep':
+      return {
+        bg: colors.form.action,
+        border: colors.form.action,
+        text: colors.white,
+        hover: colors.form.actionHover,
+        hoverBorder: colors.form.actionHover,
+        raised: true,
+      };
+    case 'cta':
+      return {
+        bg: colors.cta,
+        border: colors.ctaDeep,
+        text: colors.onCta,
+        hover: colors.ctaDeep,
+        hoverBorder: colors.ctaDeep,
+        fill: `linear-gradient(180deg, ${colors.cta} 0%, ${colors.ctaDeep} 100%)`,
+        raised: true,
+      };
     case 'secondary':
       return {
         bg: colors.accent,
@@ -110,6 +152,16 @@ function getPalette(v: Variant): Palette {
         hoverBorder: colors.accentDeep,
         fill: gradients.accent,
         raised: true,
+      };
+    // Destrutiva, mas secundária: o contorno vermelho avisa sem disputar o
+    // peso visual com a ação que conclui a tarefa.
+    case 'dangerOutline':
+      return {
+        bg: colors.surface,
+        border: colors.dangerBorder,
+        text: colors.danger,
+        hover: colors.dangerBg,
+        hoverBorder: colors.danger,
       };
     case 'outline':
       return {
@@ -176,4 +228,9 @@ const webStyles = StyleSheet.create({
     alignItems: 'center',
   },
   text: { fontSize: 13.5, fontWeight: '600', letterSpacing: 0.1 },
+});
+
+const lgStyles = StyleSheet.create({
+  base: { minHeight: 58, borderRadius: 10, paddingHorizontal: spacing.xl },
+  text: { fontSize: 18, fontWeight: '700', letterSpacing: 0 },
 });

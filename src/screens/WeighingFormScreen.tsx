@@ -7,7 +7,6 @@ import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import {
   Button,
-  Card,
   FormScreenContainer,
   Header,
   Input,
@@ -16,9 +15,33 @@ import {
   Select,
   SelectedPhoto,
   SuccessModal,
+  Topbar,
 } from '@/components';
-import { SectionHeading, Stepper, SummaryLine } from '@/components/Operations';
-import { colors, radius, spacing } from '@/theme';
+import {
+  FormCard,
+  FormStepper,
+  LeafSeal,
+  Notice,
+  PageHeader,
+  SectionHead,
+  SummaryCard,
+  SummaryRow,
+} from '@/components/FormKit';
+import { BuildingIcon, ScaleIcon, TreatmentIcon, WasteIcon } from '@/components/MenuIcons';
+import ArrowLeft from 'lucide-react-native/icons/arrow-left';
+import ArrowRight from 'lucide-react-native/icons/arrow-right';
+import Calendar from 'lucide-react-native/icons/calendar';
+import Camera from 'lucide-react-native/icons/camera';
+import Check from 'lucide-react-native/icons/check';
+import ClipboardCheck from 'lucide-react-native/icons/clipboard-check';
+import Clock from 'lucide-react-native/icons/clock';
+import MapPin from 'lucide-react-native/icons/map-pin';
+import RefreshCw from 'lucide-react-native/icons/refresh-cw';
+import Settings from 'lucide-react-native/icons/settings';
+import Users from 'lucide-react-native/icons/users';
+import { colors, gradient, radius, spacing } from '@/theme';
+import { useIsDesktop, useIsWide } from '@/hooks/useLayout';
+import { formatLongDate, roleLabel } from '@/utils/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
@@ -45,7 +68,9 @@ export function WeighingFormScreen() {
   const editId = route.params?.id;
   const isEdit = !!editId;
 
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
+  const isDesktop = useIsDesktop();
+  const isWide = useIsWide();
   const { canEditWeighing } = usePermissions();
 
   // Ref para a função de permissão — evita que o useCallback recrie load() a cada render.
@@ -55,7 +80,13 @@ export function WeighingFormScreen() {
   canEditRef.current = canEditWeighing;
 
   const [step, setStep] = useState(0);
-  const steps = ['Origem', 'Resíduo', 'Pesagem e tratamento', 'Evidência', 'Revisão'];
+  const steps = [
+    { title: 'Origem', description: 'Cliente e local', weight: 180 },
+    { title: 'Resíduo', description: 'Tipo e classificação', weight: 194 },
+    { title: 'Pesagem e tratamento', description: 'Peso e destinação', weight: 189 },
+    { title: 'Evidência', description: 'Fotos e documentos', weight: 171 },
+    { title: 'Revisão', description: 'Confirme os dados', weight: 141 },
+  ];
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -282,201 +313,403 @@ export function WeighingFormScreen() {
     }
   };
 
-  const summary = <>
-    <SectionHeading title="Resumo do registro" description="Confira os dados antes de enviar." />
-    <SummaryLine label="Cliente" value={clients.find(c => c.id === clientId)?.name} />
-    <SummaryLine label="Unidade" value={selectedUnit?.name} />
-    <SummaryLine label="Resíduo" value={wasteTypes.find(w => w.id === wasteTypeId)?.name} />
-    <SummaryLine label="Peso" value={weight ? weight + ' kg' : undefined} />
-    <SummaryLine label="Tratamento" value={treatmentTypes.find(t => t.id === treatmentTypeId)?.name} />
-    <SummaryLine label="Destinatário" value={selectedRecipient?.name} />
-    <SummaryLine label="Data e hora" value={dateStr + ' • ' + timeStr} />
-    <SummaryLine label="Evidência" value={photo ? (photo.imageSource === 'camera' ? 'Foto capturada' : 'Imagem anexada') : isEdit ? 'Nenhuma nova foto (anexos existentes preservados)' : 'Nenhuma foto anexada'} />
-    <SummaryLine label="Localização" value={shortLocationSummary(photo?.location) ?? ([mStreet, mNeighborhood, mCity, mState, mPostal].filter(Boolean).join(', ') || manualLocation)} />
-    <SummaryLine label="Pessoas na unidade" value={peopleCount} />
-    {selectedRecipient?.is_landfill && <SummaryLine label="Poderia desviar do aterro?" value={couldDivert ? 'Sim' : 'Não'} />}
-    <SummaryLine label="Observações" value={notes} />
-  </>;
+  const clientName = clients.find((c) => c.id === clientId)?.name;
+  const wasteName = wasteTypes.find((w) => w.id === wasteTypeId)?.name;
+  const treatmentName = treatmentTypes.find((t) => t.id === treatmentTypeId)?.name;
+  const evidence = photo
+    ? photo.imageSource === 'camera' ? 'Foto capturada' : 'Imagem anexada'
+    : isEdit ? 'Nenhuma nova foto (anexos existentes preservados)' : null;
+  const locationText =
+    shortLocationSummary(photo?.location) ??
+    ([mStreet, mNeighborhood, mCity, mState, mPostal].filter(Boolean).join(', ') || manualLocation || null);
+
+  /**
+   * Linhas do resumo.
+   *
+   * No painel lateral ficam as seis do desenho mais a data; evidência,
+   * localização, pessoas e observações só entram quando preenchidas — são
+   * opcionais, e seis "Não informado" a mais transformariam o resumo em lista
+   * de pendências. Na revisão (`full`) tudo aparece, porque é ali que se
+   * confere o registro inteiro antes de enviar.
+   */
+  const summaryRows = (full: boolean) => {
+    const optional = [
+      { icon: Camera, label: 'Evidência', value: evidence },
+      { icon: MapPin, label: 'Localização', value: locationText },
+      { icon: Users, label: 'Pessoas na unidade', value: peopleCount || null },
+      ...(selectedRecipient?.is_landfill
+        ? [{ icon: RefreshCw, label: 'Poderia desviar do aterro?', value: couldDivert ? 'Sim' : 'Não' }]
+        : []),
+      { icon: ClipboardCheck, label: 'Observações', value: notes || null },
+    ].filter((row) => full || row.value);
+    return (
+      <>
+        <SummaryRow icon={Users} label="Cliente" value={clientName} />
+        <SummaryRow icon={BuildingIcon} label="Unidade / Local" value={selectedUnit?.name} />
+        <SummaryRow icon={WasteIcon} label="Resíduo" value={wasteName} />
+        <SummaryRow icon={ScaleIcon} label="Peso" value={weight ? `${weight} kg` : null} />
+        <SummaryRow icon={TreatmentIcon} label="Tratamento" value={treatmentName} />
+        <SummaryRow icon={Settings} label="Destinatário" value={selectedRecipient?.name} />
+        {optional.map((row) => (
+          <SummaryRow key={row.label} icon={row.icon} label={row.label} value={row.value} />
+        ))}
+        <SummaryRow icon={Calendar} label="Data e hora" value={`${dateStr}  •  ${timeStr}`} emphasis last />
+      </>
+    );
+  };
 
   if (loading) return <Loading message="Carregando formulário..." />;
 
+  const pageTitle = isEdit ? 'Editar pesagem' : 'Nova pesagem';
+  const goNext = () => setStep((st) => Math.min(4, st + 1));
+  const goBack = () => setStep((st) => Math.max(0, st - 1));
+
   return (
-    <View style={styles.container}>
-      <Header
-        title={isEdit ? 'Editar Pesagem' : 'Nova Pesagem'}
-        subtitle={`Etapa ${step + 1} de 5 • ${steps[step]}`}
-        onBack={() => navigation.goBack()}
-      />
-      <FormScreenContainer aside={summary}>
-          <Stepper steps={steps} current={step} onChange={setStep} />
-          <View style={{ display: step === 0 ? 'flex' : 'none' }}><Card>
-            <SectionHeading number="01" title="Origem do registro" description="Identifique o cliente, a unidade e o momento da pesagem." />
-            <Select
-              label="Cliente"
-              options={clients.map((c) => ({ label: c.name, value: c.id }))}
-              value={clientId}
-              onChange={(v) => {
-                setClientId(v);
-                setUnitId('');
-              }}
-              error={errors.clientId}
-            />
-            <Select label="Unidade / Local" options={unitOptions} value={unitId} onChange={setUnitId} error={errors.unitId} />
+    <View style={[styles.container, isDesktop && gradient(PAGE_TOP, colors.pageBg)]}>
+      {isDesktop ? (
+        <Topbar
+          plain
+          crumbs={[
+            { label: 'Painel', icon: 'home-outline', onPress: () => navigation.getParent()?.navigate('Painel' as never) },
+            { label: 'Pesagens', onPress: () => navigation.navigate('WeighingsList') },
+            { label: pageTitle },
+          ]}
+          userName={profile?.full_name}
+          userRole={roleLabel[profile?.role ?? 'viewer']}
+          onNotifications={() => navigation.navigate('WeighingsList')}
+          onUser={() => navigation.getParent()?.navigate('Perfil' as never)}
+          onSignOut={signOut}
+        />
+      ) : (
+        <Header
+          title={pageTitle}
+          subtitle={`Etapa ${step + 1} de 5 • ${steps[step].title}`}
+          onBack={() => navigation.goBack()}
+        />
+      )}
 
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Input label="Data da pesagem" placeholder="DD/MM/AAAA" value={dateStr} onChangeText={setDateStr} error={errors.date} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Input label="Hora" placeholder="HH:mm" value={timeStr} onChangeText={setTimeStr} />
-              </View>
-            </View>
+      <FormScreenContainer
+        contentContainerStyle={isDesktop ? styles.deskContent : undefined}
+        columnStyle={isDesktop ? styles.deskColumn : undefined}
+      >
+        {isDesktop ? (
+          <PageHeader
+            seal={<LeafSeal size={34} />}
+            title={pageTitle}
+            subtitle={
+              isEdit
+                ? 'Revise e atualize os dados da pesagem.'
+                : 'Registre os dados da pesagem em um fluxo simples e seguro.'
+            }
+            right={<Text style={styles.today}>{formatLongDate()}</Text>}
+          />
+        ) : null}
 
-          </Card></View>
-          <View style={{ display: step === 1 ? 'flex' : 'none' }}><Card>
-            <SectionHeading number="02" title="Classificação do resíduo" description="Selecione a categoria correspondente ao material pesado." />
-            <Select label="Tipo de resíduo" options={wasteTypes.map((w) => ({ label: w.name, value: w.id }))} value={wasteTypeId} onChange={setWasteTypeId} error={errors.wasteTypeId} />
-          </Card></View>
-          <View style={{ display: step === 2 ? 'flex' : 'none' }}><Card>
-            <SectionHeading number="03" title="Pesagem e destinação" description="Informe a massa, o tratamento e o destinatário." />
-            <Input
-              label="Peso (kg)"
-              placeholder="0,00"
-              value={weight}
-              onChangeText={setWeight}
-              keyboardType="decimal-pad"
-              error={errors.weight}
-            />
-            <Select label="Tipo de tratamento" options={treatmentTypes.map((t) => ({ label: t.name, value: t.id }))} value={treatmentTypeId} onChange={setTreatmentTypeId} error={errors.treatmentTypeId} />
-            <Select
-              label="Destinatário"
-              placeholder="Opcional"
-              options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name + (r.is_landfill ? ' (Aterro)' : ''), value: r.id }))]}
-              value={recipientId}
-              onChange={setRecipientId}
-            />
-            {selectedRecipient?.is_landfill && (
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.switchLabel}>Poderia desviar do aterro?</Text>
-                  <Text style={styles.switchHint}>
-                    Este resíduo poderia ter sido destinado de outra forma em vez de ir para aterro.
-                  </Text>
-                </View>
-                <Switch
-                  value={couldDivert}
-                  onValueChange={setCouldDivert}
-                  trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
-                  thumbColor={couldDivert ? colors.green : colors.gray}
+        <View style={isWide ? styles.split : undefined}>
+          <View style={styles.main}>
+            <FormStepper steps={steps} current={step} onChange={setStep} />
+
+            <FormCard>
+              <View style={{ display: step === 0 ? 'flex' : 'none' }}>
+                <SectionHead
+                  icon={BuildingIcon}
+                  title="Origem do registro"
+                  description="Identifique o cliente, a unidade e o momento da pesagem."
                 />
-              </View>
-            )}
-            <Input
-              label="Quantidade de pessoas na unidade"
-              placeholder="Opcional — base para cálculo per capita"
-              value={peopleCount}
-              onChangeText={setPeopleCount}
-              keyboardType="number-pad"
-              error={errors.peopleCount}
-            />
-            <Input
-              label="Observações"
-              placeholder="Observações sobre a pesagem (opcional)"
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              numberOfLines={3}
-              style={{ minHeight: 80, textAlignVertical: 'top' }}
-            />
-          </Card></View>
-          <View style={{ display: step === 3 ? 'flex' : 'none' }}><Card>
-            <SectionHeading number="04" title="Evidência e localização" description="Capture uma foto em campo ou anexe uma imagem da galeria." />
-            <PhotoPicker value={photo} onChange={onPhotoChange} />
-
-            {/* Campos manuais para upload */}
-            {photo?.imageSource === 'upload' && (
-              <View style={styles.uploadFields}>
-                <Text style={styles.uploadHint}>
-                  Como a imagem foi anexada, informe os dados manualmente (opcional).
-                </Text>
-
-                {/* Checkbox para usar endereço da unidade — aparece dentro do bloco de upload, logo antes dos campos de endereço */}
-                {unitId ? (
-                  <View style={styles.unitAddressRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
-                      {selectedUnit &&
-                        !selectedUnit.street && !selectedUnit.neighborhood &&
-                        !selectedUnit.city && !selectedUnit.address && (
-                        <Text style={[styles.switchHint, { color: colors.warning }]}>
-                          Esta unidade não possui endereço cadastrado.
-                        </Text>
-                      )}
-                    </View>
-                    <Switch
-                      value={useUnitAddress}
-                      onValueChange={handleUseUnitAddress}
-                      trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
-                      thumbColor={useUnitAddress ? colors.green : colors.gray}
+                <Select
+                  size="form"
+                  required
+                  label="Cliente"
+                  placeholder="Selecione um cliente..."
+                  options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                  value={clientId}
+                  onChange={(v) => {
+                    setClientId(v);
+                    setUnitId('');
+                  }}
+                  error={errors.clientId}
+                />
+                <Select
+                  size="form"
+                  required
+                  label="Unidade / Local"
+                  placeholder="Selecione uma unidade ou local..."
+                  options={unitOptions}
+                  value={unitId}
+                  onChange={setUnitId}
+                  error={errors.unitId}
+                />
+                <View style={isDesktop ? styles.row : undefined}>
+                  <View style={styles.cell}>
+                    <Input
+                      size="form"
+                      required
+                      label="Data da pesagem"
+                      placeholder="DD/MM/AAAA"
+                      leftIconComponent={Calendar}
+                      value={dateStr}
+                      onChangeText={setDateStr}
+                      error={errors.date}
                     />
                   </View>
-                ) : null}
-
-                <Input
-                  label="Localização manual / ponto de referência"
-                  placeholder="Ex.: Galpão 2, Doca de resíduos"
-                  value={manualLocation}
-                  onChangeText={setManualLocation}
-                />
-                <Input label="Rua / logradouro" placeholder="Ex.: Rua das Flores, 100" value={mStreet} onChangeText={setMStreet} />
-                <Input label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Input label="Cidade" placeholder="Cidade" value={mCity} onChangeText={setMCity} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Input label="Estado" placeholder="UF" value={mState} onChangeText={setMState} autoCapitalize="characters" />
+                  <View style={styles.cell}>
+                    <Input
+                      size="form"
+                      required
+                      label="Hora"
+                      placeholder="HH:mm"
+                      leftIconComponent={Clock}
+                      value={timeStr}
+                      onChangeText={setTimeStr}
+                    />
                   </View>
                 </View>
-                <Input label="CEP" placeholder="00000-000" value={mPostal} onChangeText={setMPostal} keyboardType="numbers-and-punctuation" />
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Input label="Data da pesagem" placeholder="DD/MM/AAAA" value={dateStr} onChangeText={setDateStr} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Input label="Hora" placeholder="HH:mm" value={timeStr} onChangeText={setTimeStr} />
-                  </View>
-                </View>
+                <Notice style={styles.notice}>
+                  Essas informações serão utilizadas para identificar a origem da pesagem e associar os demais dados do registro.
+                </Notice>
               </View>
-            )}
 
-            {photo?.imageSource === 'camera' && (
-              <View style={styles.gpsInfo}>
-                {photo.location?.latitude != null ? (
-                  <>
-                    <Text style={styles.gpsText}>
-                      {shortLocationSummary(photo.location)
-                        ? `📍 Local capturado: ${shortLocationSummary(photo.location)}`
-                        : 'Coordenadas capturadas, mas não foi possível identificar o endereço.'}
+              <View style={{ display: step === 1 ? 'flex' : 'none' }}>
+                <SectionHead
+                  icon={WasteIcon}
+                  title="Classificação do resíduo"
+                  description="Selecione a categoria correspondente ao material pesado."
+                />
+                <Select
+                  size="form"
+                  required
+                  label="Tipo de resíduo"
+                  placeholder="Selecione o tipo de resíduo..."
+                  options={wasteTypes.map((w) => ({ label: w.name, value: w.id }))}
+                  value={wasteTypeId}
+                  onChange={setWasteTypeId}
+                  error={errors.wasteTypeId}
+                />
+              </View>
+
+              <View style={{ display: step === 2 ? 'flex' : 'none' }}>
+                <SectionHead
+                  icon={ScaleIcon}
+                  title="Pesagem e destinação"
+                  description="Informe a massa, o tratamento e o destinatário."
+                />
+                <Input
+                  size="form"
+                  required
+                  label="Peso (kg)"
+                  placeholder="0,00"
+                  value={weight}
+                  onChangeText={setWeight}
+                  keyboardType="decimal-pad"
+                  error={errors.weight}
+                />
+                <Select
+                  size="form"
+                  required
+                  label="Tipo de tratamento"
+                  placeholder="Selecione o tratamento..."
+                  options={treatmentTypes.map((t) => ({ label: t.name, value: t.id }))}
+                  value={treatmentTypeId}
+                  onChange={setTreatmentTypeId}
+                  error={errors.treatmentTypeId}
+                />
+                <Select
+                  size="form"
+                  label="Destinatário"
+                  placeholder="Opcional"
+                  options={[{ label: 'Não informado', value: '' }, ...recipients.map((r) => ({ label: r.name + (r.is_landfill ? ' (Aterro)' : ''), value: r.id }))]}
+                  value={recipientId}
+                  onChange={setRecipientId}
+                />
+                {selectedRecipient?.is_landfill && (
+                  <View style={styles.switchRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchLabel}>Poderia desviar do aterro?</Text>
+                      <Text style={styles.switchHint}>
+                        Este resíduo poderia ter sido destinado de outra forma em vez de ir para aterro.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={couldDivert}
+                      onValueChange={setCouldDivert}
+                      trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                      thumbColor={couldDivert ? colors.green : colors.gray}
+                    />
+                  </View>
+                )}
+                <Input
+                  size="form"
+                  label="Quantidade de pessoas na unidade"
+                  placeholder="Opcional — base para cálculo per capita"
+                  value={peopleCount}
+                  onChangeText={setPeopleCount}
+                  keyboardType="number-pad"
+                  error={errors.peopleCount}
+                />
+                <Input
+                  size="form"
+                  label="Observações"
+                  placeholder="Observações sobre a pesagem (opcional)"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={3}
+                  style={styles.multiline}
+                />
+              </View>
+
+              <View style={{ display: step === 3 ? 'flex' : 'none' }}>
+                <SectionHead
+                  icon={Camera}
+                  title="Evidência e localização"
+                  description="Capture uma foto em campo ou anexe uma imagem da galeria."
+                />
+                <PhotoPicker value={photo} onChange={onPhotoChange} />
+
+                {/* Campos manuais para upload */}
+                {photo?.imageSource === 'upload' && (
+                  <View style={styles.uploadFields}>
+                    <Text style={styles.uploadHint}>
+                      Como a imagem foi anexada, informe os dados manualmente (opcional).
                     </Text>
-                    <Text style={styles.gpsCoords}>
-                      {photo.location.latitude.toFixed(5)}, {photo.location.longitude?.toFixed(5)}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.gpsText}>
-                    ⚠️ Localização indisponível — a pesagem será salva sem coordenadas.
-                  </Text>
+
+                    {/* Checkbox para usar endereço da unidade — aparece dentro do bloco de upload, logo antes dos campos de endereço */}
+                    {unitId ? (
+                      <View style={styles.unitAddressRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.switchLabel}>Usar endereço cadastrado da unidade?</Text>
+                          {selectedUnit &&
+                            !selectedUnit.street && !selectedUnit.neighborhood &&
+                            !selectedUnit.city && !selectedUnit.address && (
+                            <Text style={[styles.switchHint, { color: colors.warning }]}>
+                              Esta unidade não possui endereço cadastrado.
+                            </Text>
+                          )}
+                        </View>
+                        <Switch
+                          value={useUnitAddress}
+                          onValueChange={handleUseUnitAddress}
+                          trackColor={{ true: colors.greenLight, false: colors.grayMedium }}
+                          thumbColor={useUnitAddress ? colors.green : colors.gray}
+                        />
+                      </View>
+                    ) : null}
+
+                    <Input
+                      size="form"
+                      label="Localização manual / ponto de referência"
+                      placeholder="Ex.: Galpão 2, Doca de resíduos"
+                      value={manualLocation}
+                      onChangeText={setManualLocation}
+                    />
+                    <Input size="form" label="Rua / logradouro" placeholder="Ex.: Rua das Flores, 100" value={mStreet} onChangeText={setMStreet} />
+                    <Input size="form" label="Bairro" placeholder="Ex.: Centro" value={mNeighborhood} onChangeText={setMNeighborhood} />
+                    <View style={isDesktop ? styles.row : undefined}>
+                      <View style={styles.cell}>
+                        <Input size="form" label="Cidade" placeholder="Cidade" value={mCity} onChangeText={setMCity} />
+                      </View>
+                      <View style={styles.cell}>
+                        <Input size="form" label="Estado" placeholder="UF" value={mState} onChangeText={setMState} autoCapitalize="characters" />
+                      </View>
+                    </View>
+                    <Input size="form" label="CEP" placeholder="00000-000" value={mPostal} onChangeText={setMPostal} keyboardType="numbers-and-punctuation" />
+                    <View style={isDesktop ? styles.row : undefined}>
+                      <View style={styles.cell}>
+                        <Input size="form" label="Data da pesagem" placeholder="DD/MM/AAAA" leftIconComponent={Calendar} value={dateStr} onChangeText={setDateStr} />
+                      </View>
+                      <View style={styles.cell}>
+                        <Input size="form" label="Hora" placeholder="HH:mm" leftIconComponent={Clock} value={timeStr} onChangeText={setTimeStr} />
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {photo?.imageSource === 'camera' && (
+                  <View style={styles.gpsInfo}>
+                    {photo.location?.latitude != null ? (
+                      <>
+                        <Text style={styles.gpsText}>
+                          {shortLocationSummary(photo.location)
+                            ? `📍 Local capturado: ${shortLocationSummary(photo.location)}`
+                            : 'Coordenadas capturadas, mas não foi possível identificar o endereço.'}
+                        </Text>
+                        <Text style={styles.gpsCoords}>
+                          {photo.location.latitude.toFixed(5)}, {photo.location.longitude?.toFixed(5)}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.gpsText}>
+                        ⚠️ Localização indisponível — a pesagem será salva sem coordenadas.
+                      </Text>
+                    )}
+                  </View>
                 )}
               </View>
-            )}
-          </Card></View>
-          {step === 4 && <Card><SectionHeading number="05" title="Revisão antes do envio" description={isEdit ? 'Confira as alterações do registro.' : 'O registro será enviado para validação.'} />{summary}</Card>}
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-            {step > 0 && <Button title="Voltar" variant="outline" fullWidth={false} disabled={saving} onPress={() => setStep(s => s - 1)} />}
-            {step < 4 && <Button title={step === 3 ? 'Revisar registro' : 'Continuar'} icon="arrow-forward" style={{ flex: 1 }} onPress={() => setStep(s => s + 1)} />}
+
+              {step === 4 && (
+                <View>
+                  <SectionHead
+                    icon={ClipboardCheck}
+                    title="Revisão antes do envio"
+                    description={isEdit ? 'Confira as alterações do registro.' : 'O registro será enviado para validação.'}
+                  />
+                  {summaryRows(true)}
+                </View>
+              )}
+
+              {/* Ações dentro do cartão, cada uma com metade da largura: o
+                  "Continuar" fica sempre à direita, onde o olho termina a
+                  leitura do formulário, e o "Voltar" ocupa o lugar vazio. */}
+              <View style={styles.actions}>
+                {/* No site a célula vazia segura o "Continuar" na metade
+                    direita; no celular ele ocupa a largura toda. */}
+                {isDesktop || step > 0 ? (
+                  <View style={styles.cell}>
+                    {step > 0 ? (
+                      <Button
+                        title="Voltar"
+                        variant="outline"
+                        size="lg"
+                        iconComponent={ArrowLeft}
+                        disabled={saving}
+                        onPress={goBack}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+                <View style={styles.cell}>
+                  {step < 4 ? (
+                    <Button
+                      title={step === 3 ? 'Revisar registro' : 'Continuar'}
+                      variant="deep"
+                      size="lg"
+                      iconComponent={ArrowRight}
+                      onPress={goNext}
+                    />
+                  ) : (
+                    <Button
+                      title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'}
+                      variant="deep"
+                      size="lg"
+                      iconComponent={Check}
+                      onPress={onSave}
+                      loading={saving}
+                    />
+                  )}
+                </View>
+              </View>
+            </FormCard>
           </View>
-          {step === 4 && <Button title={isEdit ? 'Salvar alterações' : 'Salvar pesagem'} icon="checkmark-circle" onPress={onSave} loading={saving} />}
+
+          {isWide && (
+            <SummaryCard title="Resumo do registro" description="Acompanhe os dados informados." style={styles.aside}>
+              {summaryRows(false)}
+              <Notice tone="safe" style={styles.asideNotice}>
+                Todos os dados são salvos apenas após a conclusão do registro.
+              </Notice>
+            </SummaryCard>
+          )}
+        </View>
       </FormScreenContainer>
 
       <SuccessModal
@@ -496,10 +729,30 @@ export function WeighingFormScreen() {
   );
 }
 
+/**
+ * Topo da página um tom mais claro que o fundo, sem faixa nem linha: é o que
+ * o desenho usa para a barra e o título se lerem como um bloco só.
+ */
+const PAGE_TOP = `linear-gradient(180deg, #FAFBFC 0px, #FAFBFC 150px, ${colors.pageBg} 260px)`;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.pageBg },
-  row: { flexDirection: 'row', gap: spacing.md },
-  sectionTitle: { fontSize: 15.5, fontWeight: '700', color: colors.text, marginBottom: spacing.md, letterSpacing: -0.2 },
+  row: { flexDirection: 'row', gap: 21 },
+  cell: { flex: 1, minWidth: 0 },
+
+  deskContent: { paddingHorizontal: 26, paddingTop: 8, paddingBottom: spacing.xxl },
+  deskColumn: { maxWidth: '100%' },
+  today: { fontSize: 14.5, color: colors.form.muted },
+
+  /** Formulário à esquerda, resumo fixo em 366px à direita — medidas do desenho. */
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 21 },
+  main: { flex: 1, minWidth: 0 },
+  aside: { width: 366 },
+  asideNotice: { marginTop: 22 },
+
+  notice: { marginTop: 3 },
+  multiline: { height: 110, paddingTop: 14, textAlignVertical: 'top' },
+  actions: { flexDirection: 'row', gap: 20, marginTop: 26 },
   uploadFields: {
     marginTop: spacing.md, backgroundColor: colors.brand[50],
     borderWidth: 1, borderColor: colors.greenLine,
