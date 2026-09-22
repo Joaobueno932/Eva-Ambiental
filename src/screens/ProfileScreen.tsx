@@ -11,6 +11,7 @@ import { colors, radius, spacing } from '@/theme';
 import { useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { ABOUT, HOW_TO_USE } from '@/utils/guides';
 import { roleLabel } from '@/utils/format';
 import { ProfileStackParamList } from '@/navigation/types';
 
@@ -87,22 +88,14 @@ export function ProfileScreen() {
         visible={showHelp}
         eva="pointing"
         title="Como usar o Eva Ambiental"
-        message={
-          'Registre pesagens na aba Pesagens (botão +), anexando foto e localização.\n\n' +
-          'Acompanhe indicadores e a taxa de desvio de aterro no Painel.\n\n' +
-          'Gere relatórios em PDF e CSV a qualquer momento. Em caso de dúvidas, fale com um administrador.'
-        }
+        message={HOW_TO_USE}
         onClose={() => setShowHelp(false)}
       />
       <EvaInfoModal
         visible={showAbout}
         eva="portrait"
         title="Sobre o Eva Ambiental"
-        message={
-          'Olá, eu sou a Eva! 🌱\n\n' +
-          'O Eva Ambiental ajuda empresas e equipes no controle, na rastreabilidade e no monitoramento das pesagens de resíduos — com evidências fotográficas, indicadores e relatórios.\n\n' +
-          'Sustentabilidade, confiança e organização.'
-        }
+        message={ABOUT}
         onClose={() => setShowAbout(false)}
       />
 
