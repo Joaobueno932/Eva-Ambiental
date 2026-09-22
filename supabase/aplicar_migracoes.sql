@@ -157,6 +157,13 @@ alter table public.profiles
 alter table public.profiles
   add constraint profiles_notes_length check (notes is null or char_length(notes) <= 500);
 
+-- `create or replace` não pode mudar o tipo de retorno de uma função, e é
+-- exatamente o que acontece aqui: a lista de colunas cresce. Num banco onde a
+-- função já existe com a forma antiga, o Postgres recusaria com "cannot change
+-- return type of existing function". Então ela é derrubada antes — dentro da
+-- mesma transação, de modo que ninguém a vê ausente.
+drop function if exists public.admin_list_users();
+
 create or replace function public.admin_list_users()
 returns table (
   id uuid,
@@ -218,6 +225,18 @@ alter table public.clients
   add column if not exists notes text,
   add column if not exists updated_at timestamptz not null default now();
 
+-- Normaliza o que já está gravado antes de exigir a forma. Sem isto, num
+-- banco onde a coluna foi criada à mão e preenchida com string vazia, o
+-- `alter table` abaixo falharia e derrubaria a migração inteira.
+--
+-- UF vazia não é uma UF: é a ausência dela, e o lugar disso é o nulo. E a
+-- sigla é maiúscula por definição — "Ms" e "MS" são o mesmo estado, mas só um
+-- deles aparece na lista de escolha da tela.
+update public.clients set state = null
+ where state is not null and btrim(state) = '';
+update public.clients set state = upper(btrim(state))
+ where state is not null and state <> upper(btrim(state));
+
 -- UF com duas letras: o campo da tela é uma sigla, não o nome do estado.
 alter table public.clients
   drop constraint if exists clients_state_length;
@@ -274,6 +293,18 @@ alter table public.units
   add column if not exists postal_code text,
   add column if not exists notes text,
   add column if not exists updated_at timestamptz not null default now();
+
+-- Normaliza o que já está gravado antes de exigir a forma. Sem isto, num
+-- banco onde a coluna foi criada à mão e preenchida com string vazia, o
+-- `alter table` abaixo falharia e derrubaria a migração inteira.
+--
+-- UF vazia não é uma UF: é a ausência dela, e o lugar disso é o nulo. E a
+-- sigla é maiúscula por definição — "Ms" e "MS" são o mesmo estado, mas só um
+-- deles aparece na lista de escolha da tela.
+update public.units set state = null
+ where state is not null and btrim(state) = '';
+update public.units set state = upper(btrim(state))
+ where state is not null and state <> upper(btrim(state));
 
 -- UF com duas letras: o campo da tela é uma sigla, não o nome do estado.
 alter table public.units
@@ -610,6 +641,18 @@ alter table public.recipients
   add constraint recipients_status_values
   check (status is null or status in ('active', 'pending', 'inactive'));
 
+-- Normaliza o que já está gravado antes de exigir a forma. Sem isto, num
+-- banco onde a coluna foi criada à mão e preenchida com string vazia, o
+-- `alter table` abaixo falharia e derrubaria a migração inteira.
+--
+-- UF vazia não é uma UF: é a ausência dela, e o lugar disso é o nulo. E a
+-- sigla é maiúscula por definição — "Ms" e "MS" são o mesmo estado, mas só um
+-- deles aparece na lista de escolha da tela.
+update public.recipients set state = null
+ where state is not null and btrim(state) = '';
+update public.recipients set state = upper(btrim(state))
+ where state is not null and state <> upper(btrim(state));
+
 -- UF com duas letras: o campo da tela é uma sigla, não o nome do estado.
 alter table public.recipients
   drop constraint if exists recipients_state_length;
@@ -724,6 +767,13 @@ alter table public.profiles
   add constraint profiles_birth_date_past check (birth_date is null or birth_date < current_date);
 
 create unique index if not exists idx_profiles_cpf on public.profiles(cpf) where cpf is not null;
+
+-- `create or replace` não pode mudar o tipo de retorno de uma função, e é
+-- exatamente o que acontece aqui: a lista de colunas cresce. Num banco onde a
+-- função já existe com a forma antiga, o Postgres recusaria com "cannot change
+-- return type of existing function". Então ela é derrubada antes — dentro da
+-- mesma transação, de modo que ninguém a vê ausente.
+drop function if exists public.admin_list_users();
 
 create or replace function public.admin_list_users()
 returns table (

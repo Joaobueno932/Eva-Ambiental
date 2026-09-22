@@ -36,6 +36,18 @@ alter table public.recipients
   add constraint recipients_status_values
   check (status is null or status in ('active', 'pending', 'inactive'));
 
+-- Normaliza o que já está gravado antes de exigir a forma. Sem isto, num
+-- banco onde a coluna foi criada à mão e preenchida com string vazia, o
+-- `alter table` abaixo falharia e derrubaria a migração inteira.
+--
+-- UF vazia não é uma UF: é a ausência dela, e o lugar disso é o nulo. E a
+-- sigla é maiúscula por definição — "Ms" e "MS" são o mesmo estado, mas só um
+-- deles aparece na lista de escolha da tela.
+update public.recipients set state = null
+ where state is not null and btrim(state) = '';
+update public.recipients set state = upper(btrim(state))
+ where state is not null and state <> upper(btrim(state));
+
 -- UF com duas letras: o campo da tela é uma sigla, não o nome do estado.
 alter table public.recipients
   drop constraint if exists recipients_state_length;
