@@ -17,7 +17,7 @@ function load(relative, dependencies = {}) {
   }, result, result.exports);
   return result.exports;
 }
-const { operationSummary, weighingEvents } = load('src/utils/operations.ts');
+const { operationSummary, weighingEvents, dailyStatusSeries } = load('src/utils/operations.ts');
 const { validateProfile } = load('src/utils/authErrors.ts');
 const record = (changes = {}) => ({ id: 'test', created_by: 'owner', approval_status: 'pending',
   created_at: '2026-09-20T12:00:00Z', weighing_date: '2026-09-20T12:00:00Z', weight_kg: 10, ...changes });
@@ -35,6 +35,28 @@ test('empty scope has no fabricated activity', () => {
 test('daily evolution sums numeric database values and sorts chronologically', () => {
   const result = operationSummary([record({ weight_kg: '12.5' }), record({ weighing_date: '2026-09-19T12:00:00Z', weight_kg: 3 }), record({ weight_kg: 2.5 })]);
   assert.deepEqual(result.daily.map(d => d.value), [3, 15]);
+});
+test('daily status series counts by status and ignores canceled records', () => {
+  const series = dailyStatusSeries([record(), record({ approval_status: 'approved' }),
+    record({ approval_status: 'approved' }), record({ approval_status: 'rejected' }),
+    record({ canceled_at: '2026-09-21' })]);
+  assert.equal(series.length, 1);
+  assert.deepEqual({ ...series[0] }, { day: '2026-09-20', label: '20/09', approved: 2, pending: 1, rejected: 1 });
+});
+test('daily status series counts weighings, never their weight', () => {
+  const series = dailyStatusSeries([record({ weight_kg: 900 }), record({ weight_kg: 1 })]);
+  assert.equal(series[0].pending, 2);
+});
+test('daily status series spans the whole window, keeping empty days at zero', () => {
+  const series = dailyStatusSeries([record()], '2026-09-18', '2026-09-22');
+  assert.deepEqual(series.map(d => d.day),
+    ['2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22']);
+  assert.deepEqual(series.map(d => d.pending), [0, 0, 1, 0, 0]);
+});
+test('daily status series sorts chronologically without a window', () => {
+  const series = dailyStatusSeries([record({ weighing_date: '2026-09-22T12:00:00Z' }),
+    record({ weighing_date: '2026-09-19T12:00:00Z' })]);
+  assert.deepEqual(series.map(d => d.day), ['2026-09-19', '2026-09-22']);
 });
 test('timeline never infers an approval from updated_at', () => {
   assert.equal(weighingEvents(record({ updated_at: '2026-09-21T12:00:00Z' })).length, 1);
@@ -67,3 +89,80 @@ for (const role of ['admin', 'analyst', 'operator', 'viewer']) {
     assert.equal(p.canEditWeighing(record({ canceled_at: '2026-09-21' })), false);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Fator de desvio de aterro (migração 0011)
+// ---------------------------------------------------------------------------
+// O fator é o único campo do cadastro de tratamentos que muda número: ele
+// entra na taxa de desvio do painel e dos relatórios. Estes testes fixam que
+// um banco sem o campo, ou um cadastro em que ninguém mexeu nele, continua
+// dando exatamente a conta antiga.
+// O módulo só é carregado para uma função que não usa datas; o dayjs entra
+// como dublê porque `format.ts` chama `dayjs.locale` ao ser importado.
+const dayjsStub = () => ({ isValid: () => false, format: () => '' });
+dayjsStub.locale = () => {};
+const { treatmentDiversionFactor } = load('src/utils/format.ts', {
+  dayjs: { __esModule: true, default: dayjsStub },
+  'dayjs/locale/pt-br': {},
+});
+
+test('sem o campo, o fator repete a marca de desvio', () => {
+  assert.equal(treatmentDiversionFactor({ name: 'Reciclagem', counts_as_diversion: true }), 1);
+  assert.equal(treatmentDiversionFactor({ name: 'Aterro', counts_as_diversion: false }), 0);
+  assert.equal(treatmentDiversionFactor(null), 0);
+});
+
+test('o fator cadastrado manda, inclusive quando é parcial', () => {
+  assert.equal(treatmentDiversionFactor({ counts_as_diversion: true, diversion_factor: 100 }), 1);
+  assert.equal(treatmentDiversionFactor({ counts_as_diversion: true, diversion_factor: 60 }), 0.6);
+  // Fator zero vence a marca: quem zerou o percentual não quer desvio nenhum.
+  assert.equal(treatmentDiversionFactor({ counts_as_diversion: true, diversion_factor: 0 }), 0);
+});
+
+test('fator fora da faixa é contido, não propagado', () => {
+  assert.equal(treatmentDiversionFactor({ counts_as_diversion: true, diversion_factor: 150 }), 1);
+  assert.equal(treatmentDiversionFactor({ counts_as_diversion: true, diversion_factor: -10 }), 0);
+});
+
+test('o nome ainda desvia quando não há marca nem fator', () => {
+  // Fallback histórico por nome normalizado, preservado.
+  assert.equal(treatmentDiversionFactor({ name: 'Reaproveitamento' }), 1);
+  assert.equal(treatmentDiversionFactor({ name: 'Incineração' }), 0);
+});
+
+// ---------------------------------------------------------------------------
+// CPF e data de nascimento (migração 0015)
+// ---------------------------------------------------------------------------
+const { maskCpf, isValidCpf, maskDate, parseBrDate, formatBrDate } = load('src/utils/format.ts', {
+  dayjs: { __esModule: true, default: dayjsStub },
+  'dayjs/locale/pt-br': {},
+});
+
+test('a máscara do CPF acompanha o que já foi digitado', () => {
+  assert.equal(maskCpf('123'), '123');
+  assert.equal(maskCpf('1234567'), '123.456.7');
+  assert.equal(maskCpf('52998224725'), '529.982.247-25');
+  // Dígitos a mais são descartados em vez de deslocarem a máscara.
+  assert.equal(maskCpf('529982247259999'), '529.982.247-25');
+});
+
+test('o CPF é conferido pelos dígitos verificadores', () => {
+  assert.equal(isValidCpf('529.982.247-25'), true);
+  assert.equal(isValidCpf('52998224725'), true);
+  assert.equal(isValidCpf('529.982.247-24'), false);
+  // Sequências repetidas passam na conta, mas não são CPF de ninguém.
+  assert.equal(isValidCpf('111.111.111-11'), false);
+  assert.equal(isValidCpf('123'), false);
+  assert.equal(isValidCpf(null), false);
+});
+
+test('a data só é aceita se existir no calendário', () => {
+  assert.equal(maskDate('12051990'), '12/05/1990');
+  assert.equal(parseBrDate('12/05/1990'), '1990-05-12');
+  assert.equal(parseBrDate('29/02/2024'), '2024-02-29');
+  // 2023 não é bissexto, 31/02 não existe e o ano precisa de quatro casas.
+  assert.equal(parseBrDate('29/02/2023'), null);
+  assert.equal(parseBrDate('31/02/1990'), null);
+  assert.equal(parseBrDate('12/5/90'), null);
+  assert.equal(parseBrDate(''), null);
+});
