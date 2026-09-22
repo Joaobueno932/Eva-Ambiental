@@ -751,3 +751,98 @@ $$;
 
 revoke all on function public.admin_list_users() from public, anon;
 grant execute on function public.admin_list_users() to authenticated;
+
+
+-- =============================================================
+-- Conferência — é o resultado que aparece na tela depois de rodar
+-- =============================================================
+-- Três blocos numa tabela só:
+--   coluna  → cada coluna esperada, com "ok" ou "FALTANDO"
+--   funcao  → cada função esperada, com "ok" ou "FALTANDO"
+--   linhas  → quantas linhas cada tabela tem agora
+--
+-- O terceiro bloco é a prova de que nada foi perdido: compare com
+-- o que você sabe do banco. Nenhum comando acima apaga linha.
+
+with esperado_coluna(tabela, coluna) as (
+  values
+      ('weighings','seq'),
+      ('profiles','notes'),
+      ('profiles','cpf'),
+      ('profiles','birth_date'),
+      ('clients','trade_name'),
+      ('clients','state_registration'),
+      ('clients','segment'),
+      ('clients','contact_name'),
+      ('clients','contact_role'),
+      ('clients','city'),
+      ('clients','state'),
+      ('clients','notes'),
+      ('clients','updated_at'),
+      ('units','code'),
+      ('units','type'),
+      ('units','contact_name'),
+      ('units','phone'),
+      ('units','street'),
+      ('units','neighborhood'),
+      ('units','state'),
+      ('units','postal_code'),
+      ('units','notes'),
+      ('units','updated_at'),
+      ('treatment_types','category'),
+      ('treatment_types','description'),
+      ('treatment_types','application'),
+      ('treatment_types','notes'),
+      ('treatment_types','diversion_factor'),
+      ('treatment_types','updated_at'),
+      ('waste_types','code'),
+      ('waste_types','category'),
+      ('waste_types','waste_class'),
+      ('waste_types','description'),
+      ('waste_types','default_treatment_id'),
+      ('waste_types','suggested_recipient_id'),
+      ('waste_types','is_hazardous'),
+      ('waste_types','is_divertible'),
+      ('waste_types','notes'),
+      ('waste_types','updated_at'),
+      ('recipients','is_landfill'),
+      ('weighings','people_count'),
+      ('weighings','could_divert_from_landfill'),
+      ('recipients','type'),
+      ('recipients','contact_name'),
+      ('recipients','city'),
+      ('recipients','state'),
+      ('recipients','postal_code'),
+      ('recipients','street'),
+      ('recipients','neighborhood'),
+      ('recipients','website'),
+      ('recipients','license_number'),
+      ('recipients','license_url'),
+      ('recipients','status'),
+      ('recipients','notes'),
+      ('recipients','updated_at')
+),
+esperada_funcao(nome) as (values ('admin_list_users'), ('unit_weighing_stats'), ('treatment_usage_stats'), ('waste_usage_stats'), ('recipient_usage_stats'), ('sync_recipient_active'), ('next_weighing_seq'), ('set_weighing_seq'))
+select 'coluna' as tipo,
+       e.tabela || '.' || e.coluna as item,
+       case when c.column_name is null then 'FALTANDO' else 'ok' end as situacao
+  from esperado_coluna e
+  left join information_schema.columns c
+    on c.table_schema = 'public' and c.table_name = e.tabela and c.column_name = e.coluna
+union all
+select 'funcao',
+       f.nome,
+       case when p.proname is null then 'FALTANDO' else 'ok' end
+  from esperada_funcao f
+  left join pg_proc p
+    on p.proname = f.nome
+   and p.pronamespace = 'public'::regnamespace
+union all
+select 'linhas' as tipo, 'profiles' as item, count(*)::text as situacao from public.profiles
+  union all select 'linhas' as tipo, 'clients' as item, count(*)::text as situacao from public.clients
+  union all select 'linhas' as tipo, 'units' as item, count(*)::text as situacao from public.units
+  union all select 'linhas' as tipo, 'waste_types' as item, count(*)::text as situacao from public.waste_types
+  union all select 'linhas' as tipo, 'treatment_types' as item, count(*)::text as situacao from public.treatment_types
+  union all select 'linhas' as tipo, 'recipients' as item, count(*)::text as situacao from public.recipients
+  union all select 'linhas' as tipo, 'weighings' as item, count(*)::text as situacao from public.weighings
+order by 1, 3 desc, 2;
