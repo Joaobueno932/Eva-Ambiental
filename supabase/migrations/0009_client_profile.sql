@@ -25,6 +25,18 @@ alter table public.clients
   add column if not exists notes text,
   add column if not exists updated_at timestamptz not null default now();
 
+-- Normaliza o que já está gravado antes de exigir a forma. Sem isto, num
+-- banco onde a coluna foi criada à mão e preenchida com string vazia, o
+-- `alter table` abaixo falharia e derrubaria a migração inteira.
+--
+-- UF vazia não é uma UF: é a ausência dela, e o lugar disso é o nulo. E a
+-- sigla é maiúscula por definição — "Ms" e "MS" são o mesmo estado, mas só um
+-- deles aparece na lista de escolha da tela.
+update public.clients set state = null
+ where state is not null and btrim(state) = '';
+update public.clients set state = upper(btrim(state))
+ where state is not null and state <> upper(btrim(state));
+
 -- UF com duas letras: o campo da tela é uma sigla, não o nome do estado.
 alter table public.clients
   drop constraint if exists clients_state_length;

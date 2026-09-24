@@ -31,6 +31,13 @@ alter table public.profiles
 
 create unique index if not exists idx_profiles_cpf on public.profiles(cpf) where cpf is not null;
 
+-- `create or replace` não pode mudar o tipo de retorno de uma função, e é
+-- exatamente o que acontece aqui: a lista de colunas cresce. Num banco onde a
+-- função já existe com a forma antiga, o Postgres recusaria com "cannot change
+-- return type of existing function". Então ela é derrubada antes — dentro da
+-- mesma transação, de modo que ninguém a vê ausente.
+drop function if exists public.admin_list_users();
+
 create or replace function public.admin_list_users()
 returns table (
   id uuid,

@@ -21,6 +21,13 @@ alter table public.profiles
 alter table public.profiles
   add constraint profiles_notes_length check (notes is null or char_length(notes) <= 500);
 
+-- `create or replace` não pode mudar o tipo de retorno de uma função, e é
+-- exatamente o que acontece aqui: a lista de colunas cresce. Num banco onde a
+-- função já existe com a forma antiga, o Postgres recusaria com "cannot change
+-- return type of existing function". Então ela é derrubada antes — dentro da
+-- mesma transação, de modo que ninguém a vê ausente.
+drop function if exists public.admin_list_users();
+
 create or replace function public.admin_list_users()
 returns table (
   id uuid,
